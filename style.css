@@ -596,3 +596,63 @@ body.phone { min-height: 100vh; min-height: 100dvh; padding: max(14px, env(safe-
 
 .tv .buzzcard.won { animation: cardAway .45s ease-in 2.3s forwards; }
 @keyframes cardAway { to { opacity: 0; visibility: hidden; } }
+
+.fx-fullvid { background: #000; display: grid; place-items: center; z-index: 95; }
+.fx-fullvid video { width: 100vw; height: 100vh; object-fit: contain; }
+
+/* „ხელს ვაწერ“ შესვლისას */
+.phone .agree { display: flex; gap: 10px; align-items: flex-start; background: var(--bg); border-radius: 14px; padding: 10px 12px; margin: 0 0 10px; font-size: 16px; font-weight: 700; line-height: 1.3; cursor: pointer; }
+.phone .agree input { flex: none; width: 26px; height: 26px; margin: 0; accent-color: var(--pink); }
+.phone .joinbar .quietlink { min-height: 40px; margin-top: 2px; }
+.phone .votebtn { min-height: 72px; }
+.phone .votebtn .pic { width: 52px; height: 52px; flex: none; }
+.phone .votebtn.sel { border-color: var(--pink); background: #fff6f9; }
+
+/* ტვ: ბრძოლები */
+.tv .battle .bperf { flex: 1; display: flex; justify-content: center; align-items: center; gap: 4vw; flex-wrap: wrap; }
+.tv .bcard { text-align: center; }
+.tv .bcard .pic { width: 16vw; height: 16vw; display: block; margin: 0 auto 1.5vh; }
+.tv .bcard .nm { font-family: var(--head); font-weight: 800; font-size: 3.4vw; }
+.tv .bbars { display: flex; flex-direction: column; gap: 2vh; width: 80vw; align-self: center; margin: auto 0; }
+.tv .bbar { display: flex; align-items: center; gap: 1.6vw; background: #fff; border-radius: 1.4vw; padding: 1vh 1.6vw; font-size: 2.8vw; font-weight: 800; box-shadow: var(--shadow); }
+.tv .bbar .pic { width: 5vw; height: 5vw; flex: none; }
+.tv .bbar .nm { width: 20vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv .bbar .track { flex: 1; height: 3.4vh; background: var(--bg); border-radius: 999px; overflow: hidden; }
+.tv .bbar .fill { display: block; height: 100%; width: var(--w); background: var(--pink-l); border-radius: 999px; animation: barGrow 1.2s cubic-bezier(.2, .8, .3, 1) both; }
+.tv .bbar.win .fill { background: var(--pink); }
+@keyframes barGrow { from { width: 0; } }
+.tv .bwin { text-align: center; animation: slam .35s ease-out both; margin-top: 2vh; }
+.tv .bwpics { display: flex; justify-content: center; gap: 2vw; }
+.tv .bwpics .pic { width: 12vw; height: 12vw; }
+.tv .bwname { font-family: var(--head); font-weight: 800; font-size: 6vw; color: var(--pink); line-height: 1.1; }
+.tv .bwtext { font-size: 2.6vw; font-weight: 700; margin-top: 1vh; }
+.tv .bbars.hidden, .tv .bwin.hidden { display: none; }
+.ytbox { position: fixed; left: -10000px; top: 0; width: 640px; height: 360px; z-index: 30; }
+.ytbox.show { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 70vw; height: 39.4vw; border-radius: 1.6vw; overflow: hidden; box-shadow: var(--shadow); }
+.ytbox iframe { width: 100%; height: 100%; border: 0; }
+
+.tchip.perf { background: var(--pink); color: #fff; }
+.tchip.perf .lucide { width: 14px; height: 14px; }
+.app input[type=range] { accent-color: var(--pink); height: 28px; }
+
+/* შესვლა: კოდი და სახელი ერთ რიგში, კომპაქტური დაბალ ეკრანებზე */
+.phone .jrow { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
+.phone .jrow input { width: 100%; }
+.phone .jrow #fcode { text-align: center; padding-left: 6px; padding-right: 6px; }
+@media (max-height: 760px) {
+  body.phone { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .phone .logo { font-size: 26px; margin: 2px 0 10px; }
+  .phone .join-card { padding: 14px; }
+  .phone .join-card label.f { margin: 8px 0 4px; }
+  .phone .join-card input { min-height: 48px; padding-top: 6px; padding-bottom: 6px; }
+  .phone .join-hint { margin: 0; }
+  .phone .agree { padding: 7px 10px; margin-bottom: 8px; line-height: 1.25; }
+  .phone .joinbar { padding-top: 8px; margin-top: 4px; }
+  .phone .joinbar .quietlink { min-height: 36px; }
+}
+.phone .join-card .err:empty { display: none; }
+.phone .votebtn { min-height: 104px; font-size: 22px; gap: 14px; }
+.phone .votebtn .pic { width: 80px; height: 80px; }
+.app .bacts { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.app .bacts .btn { width: 100%; white-space: normal; }
+.tv .fx-media .fxmediabox img { min-height: 52vh; min-width: 30vw; object-fit: contain; }

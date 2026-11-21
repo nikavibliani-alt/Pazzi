@@ -1,9 +1,9 @@
 // ფაციფუცობანა — ადმინის გვერდი: ქვიზები, კითხვები, სურათები, ხმები, პარამეტრები
 const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, videos: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
 const view = $('#view');
-const MAX_SND_MB = 3, MAX_SND_SEC = 30, MAX_GIF_MB = 2.5, MAX_VID_MB = 4, MAX_VID_SEC = 10;
-const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', streaks: 'სერიები', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
-const TYPE_NAMES = { buzz: 'ბლიც', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
+const MAX_SND_MB = 3, MAX_SND_SEC = 30, MAX_GIF_MB = 2.5, MAX_VID_MB = 4, MAX_VID_SEC = 10, WIN_VID_MB = 10, WIN_VID_SEC = 60;
+const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', streaks: 'სერიები', battles: 'ბრძოლები', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
+const TYPE_NAMES = { buzz: 'ბლიცი', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
 const EV_NAME = Object.fromEntries(SOUND_EVENTS);
 const Q_EVENTS = { 1: ['buzz', 'right', 'wrong'], 2: ['reveal', 'scoreboard'] };
 $('#gateLogo').innerHTML = logoHtml(); $('#sideLogo').innerHTML = logoHtml();
@@ -16,6 +16,7 @@ function start() {
   const on = (path, key) => db.ref(path).on('value', s => { M[key] = s.val() || {}; M.loaded[key] = true; onData(key); });
   db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
   on('quizzes', 'quizzes'); on('questions', 'questions'); on('library/images', 'images'); on('library/sounds', 'sounds'); on('library/videos', 'videos'); on('teams', 'teams');
+  db.ref('battles').on('value', s => { M.battles = s.val(); if (M.battles === null && !M.bmade) { M.bmade = true; db.ref('battles').set(DEFAULT_BATTLES); } if (M.tab === 'battles') render(false); });
   watchConfig(() => { $('#sideLogo').innerHTML = logoHtml(); document.title = gameName() + ' — ადმინი'; M.loaded.config = true; onData('config'); });
   icons();
 }
@@ -67,6 +68,7 @@ function render(force) {
   if (M.tab === 'quiz') renderQuizTab();
   else if (M.tab === 'rules') renderRules();
   else if (M.tab === 'streaks') renderStreaks();
+  else if (M.tab === 'battles') renderBattles();
   else if (M.tab === 'images') renderImages();
   else if (M.tab === 'sounds') renderSounds();
   else renderSettings();
@@ -140,19 +142,19 @@ function drawEditor() {
   $('#drawerTitle').textContent = `კითხვა ${n} · ${TYPE_NAMES[t] || ''}`;
   let h = `<div class="sect"><h4>${L('type')}კითხვა</h4>`;
   if (c.game === 2) h += `<select id="e_type" style="margin-bottom:10px">${['single', 'multi', 'poll', 'text'].map(k => `<option value="${k}" ${t === k ? 'selected' : ''}>${{ single: 'ერთი სწორი პასუხი (4 ვარიანტი)', multi: 'რამდენიმე სწორი პასუხი (4 ვარიანტი)', poll: 'გამოკითხვა (2 ვარიანტი, ქულის გარეშე)', text: 'ჩაწერითი პასუხი' }[k]}</option>`).join('')}</select>`;
-  else h += `<p class="hint">ბლიც კითხვა: წამყვანი ხმამაღლა კითხულობს.</p>`;
+  else h += `<p class="hint">ბლიცი კითხვა: წამყვანი ხმამაღლა კითხულობს.</p>`;
   h += `<textarea id="e_text" rows="3" placeholder="კითხვის ტექსტი">${esc(c.text)}</textarea></div>`;
   if (t === 'single' || t === 'multi' || t === 'poll') {
     h += `<div class="sect"><h4>${L('list')}ვარიანტები ${t === 'poll' ? '' : '· მონიშნე სწორი'}</h4>`;
     opts.forEach((o, i) => { h += `<div class="optrow">${t === 'poll' ? `<span class="lt">${LETTERS[i]}</span>` : `<input type="${t === 'single' ? 'radio' : 'checkbox'}" name="cor" class="e_cor" data-i="${i}" ${corr.includes(i) ? 'checked' : ''} aria-label="სწორი">`}<input type="text" class="e_opt" value="${esc(o)}" placeholder="${LETTERS[i]} ვარიანტი"></div>`; });
     h += '</div>';
   } else {
-    h += `<div class="sect"><h4>${L('circle-check-big')}სწორი პასუხი</h4><input type="text" id="e_ans" value="${esc(c.answer)}"><p class="hint">${t === 'buzz' ? 'ჩანს მხოლოდ წამყვანს.' : 'ჩანს წამყვანს და ტვ-ზე გამოაშკარავებისას.'}</p></div>`;
+    h += `<div class="sect"><h4>${L('circle-check-big')}სწორი პასუხი</h4><input type="text" id="e_ans" value="${esc(c.answer)}"><p class="hint">${t === 'buzz' ? 'ჩანს მხოლოდ წამყვანს.' : 'ჩანს წამყვანს და ტვ-ზე პასუხის გახსნისას.'}</p></div>`;
   }
   const im = c.img && M.images[c.img];
   h += `<div class="sect"><h4>${L('image')}სურათი · ჩანს ტვ-ზე</h4><div class="row">${im ? `<img class="thumb" src="${im.thumb}" alt="">` : '<span class="hint">სურათი არ არის</span>'}<span class="grow"></span><button class="btn" data-a="pickimg">${L('images')}ბიბლიოთეკიდან</button><label class="btn">${L('upload')}ატვირთვა<input type="file" id="e_img_up" accept="image/*" hidden></label>${c.img ? `<button class="btn quiet icon danger" data-a="rmimg" data-tip="სურათის მოხსნა">${L('x')}</button>` : ''}</div></div>`;
   h += `<div class="sect"><h4>${L('film')}მოკლე ვიდეო · ტვ-ზე</h4><div class="row"><select id="e_vid" class="grow"><option value="">ვიდეოს გარეშე</option>${Object.entries(M.videos).map(([id, v]) => `<option value="${id}" ${c.vid === id ? 'selected' : ''}>${esc(v.name)} (${Math.round(v.dur || 0)} წმ)</option>`).join('')}</select><label class="btn">${L('upload')}ატვირთვა<input type="file" id="e_vid_up" accept="video/*" hidden></label></div><p class="hint">მაქსიმუმ ${MAX_VID_SEC} წამი და ${MAX_VID_MB} მბ.</p></div>`;
-  h += `<div class="sect"><h4>${L('monitor')}სურათი / ვიდეო / მუსიკა ტვ-ზე</h4><select id="e_mauto"><option value="manual" ${c.mediaAuto !== 'auto' ? 'selected' : ''}>მხოლოდ როცა დავაჭერ (წამყვანის გვერდზე)</option><option value="auto" ${c.mediaAuto === 'auto' ? 'selected' : ''}>ავტომატურად, კითხვის დაწყებისას</option></select></div>`;
+  h += `<div class="sect"><h4>${L('monitor')}სურათი / ვიდეო / მუსიკა ტვ-ზე</h4><select id="e_mauto"><option value="" ${!c.mediaAuto ? 'selected' : ''}>როგორც თამაშის წესებშია (${esc((MEDIA_MODES.find(m => m[0] === rulesG(c.game || 2).media) || MEDIA_MODES[0])[1])})</option>${MEDIA_MODES.map(([v, l]) => `<option value="${v}" ${c.mediaAuto === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
   h += `<div class="sect"><h4>${L('music')}მუსიკა / კლიპი · მაგ. „გამოიცანი სიმღერა“</h4><div class="row"><select id="e_snd" class="grow">${sndOptions(c.snd, '<option value="">კლიპის გარეშე</option>')}</select>${c.snd ? `<button class="btn icon" data-a="playsnd" data-id="${c.snd}" data-tip="მოსმენა">${L('play')}</button>` : ''}<label class="btn icon" data-tip="ახლის ატვირთვა">${L('upload')}<input type="file" id="e_snd_up" accept="audio/*" hidden></label></div></div>`;
   const sf = c.sfx || {};
   h += `<div class="sect"><h4>${L('volume-2')}ხმები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „ნაგულისხმევი“ — თამაშის საერთო ხმა (ხმები → თამაშის ხმები).</p>` +
@@ -172,7 +174,7 @@ function qRuleKeys(c) {
   k.push('board');
   return k;
 }
-const RULE_NAMES = { ptsFirst: 'ქულა პირველ სწორ პასუხზე', ptsOther: 'ქულა დანარჩენ სწორ პასუხებზე', onlyFirst: 'ვინ იღებს ქულას', pts: 'ქულა სწორ პასუხზე', penalty: 'ქულის დაკლება შეცდომაზე', multi: 'რამდენიმე სწორი პასუხი', typed: 'ჩაწერითი პასუხის შემოწმება', board: 'ქულების ცხრილი კითხვის შემდეგ', afterWrong: 'არასწორი პასუხის შემდეგ', sameTeamTwice: 'იგივე გუნდს ისევ შეუძლია დაჭერა' };
+const RULE_NAMES = { ptsFirst: 'ქულა პირველ სწორ პასუხზე', ptsOther: 'ქულა დანარჩენ სწორ პასუხებზე', onlyFirst: 'ვინ იღებს ქულას', pts: 'ქულა სწორ პასუხზე', penalty: 'ქულის დაკლება შეცდომაზე', multi: 'რამდენიმე სწორი პასუხი', typed: 'ჩაწერითი პასუხის შემოწმება', board: 'ქულების ცხრილი კითხვის შემდეგ', afterWrong: 'არასწორი პასუხის შემდეგ', sameTeamTwice: 'იმავე გუნდს ისევ შეუძლია დაჭერა' };
 const NUM_RULES = ['pts', 'penalty', 'ptsFirst', 'ptsOther'];
 function ruleControl(key, val, def, attr) {
   if (NUM_RULES.includes(key)) return `<input type="number" ${attr} step="0.5" min="0" value="${val === undefined ? '' : esc(val)}" placeholder="${def === undefined ? '' : 'თამაშის წესი: ' + esc(def)}">`;
@@ -184,7 +186,7 @@ function rulesSect(c) {
   return `<div class="sect"><h4>${L('scale')}წესები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „თამაშის წესი“ (წესები → ${c.game === 1 ? 'თამაში 1' : 'თამაში 2'}).</p>` +
     qRuleKeys(c).map(k => `<div class="evline" style="grid-template-columns:190px minmax(0,1fr)"><b>${RULE_NAMES[k]}</b>${ruleControl(k, own[k], g[k], `data-qrule="${k}"`)}</div>`).join('') + '</div>';
 }
-// „როცა ვინმე შეცდება“: სურათი/GIF, მოკლე ვიდეო ან ჩაშენებული ეფექტი (ტვ-ზე გამოაშკარავებისას)
+// „როცა ვინმე შეცდება“: სურათი/GIF, მოკლე ვიდეო ან ჩაშენებული ეფექტი (ტვ-ზე პასუხის გახსნისას)
 const FX_NAMES = Object.fromEntries(FX_LIST);
 function wrongSect(c) {
   const fx = c.wrongFx || null, t = fx ? fx.type : '';
@@ -192,16 +194,17 @@ function wrongSect(c) {
   if (t === 'img') { const im = M.images[fx.id]; body = `<div class="row">${im ? `<img class="thumb" src="${im.thumb}" alt="">` : '<span class="hint">სურათი არ არის არჩეული</span>'}<span class="grow"></span><button class="btn" data-a="pickfximg">${L('images')}ბიბლიოთეკიდან</button><label class="btn">${L('upload')}სურათი / GIF<input type="file" id="e_fx_img" accept="image/*" hidden></label></div><p class="hint">GIF რჩება მოძრავი (მაქს. ${MAX_GIF_MB} მბ).</p>`; }
   else if (t === 'video') body = `<div class="row"><select id="e_fx_vid" class="grow"><option value="">აირჩიე ვიდეო</option>${Object.entries(M.videos).map(([id, v]) => `<option value="${id}" ${fx.id === id ? 'selected' : ''}>${esc(v.name)} (${Math.round(v.dur || 0)} წმ)</option>`).join('')}</select><label class="btn">${L('upload')}ვიდეოს ატვირთვა<input type="file" id="e_fx_vup" accept="video/*" hidden></label></div><p class="hint">მაქსიმუმ ${MAX_VID_SEC} წამი და ${MAX_VID_MB} მბ (MP4 საუკეთესოა).</p>`;
   else if (t === 'effect') body = `<select id="e_fx_eff">${Object.entries(FX_NAMES).map(([k, v]) => `<option value="${k}" ${fx.name === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
-  return `<div class="sect"><h4>${L('sparkles')}როცა ვინმე შეცდება · ტვ-ზე, გამოაშკარავებისას</h4><select id="e_fx_type" style="margin-bottom:10px"><option value="" ${!t ? 'selected' : ''}>არაფერი</option><option value="img" ${t === 'img' ? 'selected' : ''}>სურათი ან GIF</option><option value="video" ${t === 'video' ? 'selected' : ''}>მოკლე ვიდეო</option><option value="effect" ${t === 'effect' ? 'selected' : ''}>ჩაშენებული ეფექტი</option></select>${body}<p class="hint">ჩაირთვება მხოლოდ მაშინ, თუ ერთმა მაინც არასწორად უპასუხა.</p></div>`;
+  return `<div class="sect"><h4>${L('sparkles')}როცა ვინმე შეცდება · ტვ-ზე, პასუხის გახსნისას</h4><select id="e_fx_type" style="margin-bottom:10px"><option value="" ${!t ? 'selected' : ''}>არაფერი</option><option value="img" ${t === 'img' ? 'selected' : ''}>სურათი ან GIF</option><option value="video" ${t === 'video' ? 'selected' : ''}>მოკლე ვიდეო</option><option value="effect" ${t === 'effect' ? 'selected' : ''}>ჩაშენებული ეფექტი</option></select>${body}<p class="hint">ჩაირთვება მხოლოდ მაშინ, თუ ერთმა მაინც არასწორად უპასუხა.</p></div>`;
 }
 function setFx(fx) { M.cur.wrongFx = fx; scheduleQSave(); drawEditor(); drawQListSoon(); }
-async function addVideo(file) {
+async function addVideo(file, big) { // big = ბრძოლის გამარჯვებულის ვიდეო (უფრო გრძელი)
+  const MAXMB = big ? WIN_VID_MB : MAX_VID_MB, MAXSEC = big ? WIN_VID_SEC : MAX_VID_SEC;
   const mb = file.size / 1048576;
-  if (mb > MAX_VID_MB) { note(`ვიდეო ძალიან დიდია (${mb.toFixed(1)} მბ). მაქსიმუმი ${MAX_VID_MB} მბ-ია. გაჭერი უფრო მოკლედ ან დაბალი ხარისხით.`); return null; }
+  if (mb > MAXMB) { note(`ვიდეო ძალიან დიდია (${mb.toFixed(1)} მბ). მაქსიმუმი ${MAXMB} მბ-ია. დაამოკლე ან დაბალი ხარისხით ატვირთე.`); return null; }
   const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
   const dur = await new Promise(res => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => res(v.duration); v.onerror = () => res(-1); v.src = data; });
   if (!(dur > 0)) { note('ამ ვიდეოს ვერ ვკითხულობ. სცადე MP4.'); return null; }
-  if (dur > MAX_VID_SEC + .5) { note(`ვიდეო ${Math.round(dur)} წამია. მაქსიმუმი ${MAX_VID_SEC} წამია. გაჭერი უფრო მოკლედ.`); return null; }
+  if (dur > MAXSEC + .5) { note(`ვიდეო ${Math.round(dur)} წამია. მაქსიმუმი ${MAXSEC} წამია. უფრო მოკლედ მოჭერი.`); return null; }
   const id = db.ref('library/videos').push().key;
   await db.ref('libdata/vid/' + id).set(data);
   await db.ref('library/videos/' + id).set({ name: baseName(file), dur, size: file.size, created: TS });
@@ -258,12 +261,12 @@ function openModal(html) { closeModal(); const m = document.createElement('div')
 function closeModal() { const m = $('#modal'); if (m) m.remove(); }
 function pickImgModal() {
   const l = Object.entries(M.images);
-  openModal(`<h3 class="head" style="margin-bottom:14px">აირჩიე სურათი</h3>${l.length ? `<div class="libgrid">${l.map(([id, im]) => `<div class="libitem" style="cursor:pointer" data-a="useimg" data-id="${id}"><img src="${im.thumb}" alt=""><b>${esc(im.name)}</b></div>`).join('')}</div>` : '<p class="muted">ბიბლიოთეკა ცარიელია. ატვირთე სურათი „სურათები“-ში ან პირდაპირ აქ, „ატვირთვა“-თი.</p>'}`);
+  openModal(`<h3 class="head" style="margin-bottom:14px">აირჩიე სურათი</h3>${l.length ? `<div class="libgrid">${l.map(([id, im]) => `<div class="libitem" style="cursor:pointer" data-a="useimg" data-id="${id}"><img src="${im.thumb}" alt=""><b>${esc(im.name)}</b></div>`).join('')}</div>` : '<p class="muted">ბიბლიოთეკა ცარიელია. ატვირთე სურათი „სურათებში“ ან პირდაპირ აქ, „ატვირთვით“.</p>'}`);
 }
 function moveModal() {
   const n = M.moveIds.length;
   const grp = (g, title) => `<h3 style="margin:16px 0 6px;color:var(--muted);font-size:14px;display:flex;gap:8px;align-items:center">${L(g === 1 ? 'zap' : 'circle-help')}${title}</h3>` + (quizList(g).filter(([id]) => id !== M.selQuiz).map(([id, q]) => `<button class="btn block" style="justify-content:space-between;margin:6px 0" data-a="moveto" data-id="${id}"><span>${esc(q.name)}</span><span class="muted">${qOf(id).length} კითხვა</span></button>`).join('') || '<p class="hint">სხვა ქვიზი არ არის</p>');
-  openModal(`<h3 class="head" style="margin-bottom:4px">გადატანა: ${n} კითხვა</h3><p class="hint">კითხვა ქვიზის ბოლოში მოხვდება, მერე გადაათრიე სასურველ ადგილას.${M.moveIds.some(id => M.questions[id] && M.questions[id].game === 2) ? ' თამაში 1-ში გადატანისას სწორი პასუხი წამყვანს პასუხად გამოუჩნდება.' : ''}</p>${grp(1, 'თამაში 1 · ბლიცი (ხმამაღლა კითხვა)')}${grp(2, 'თამაში 2 · ფაცი თუ ფუცი')}`);
+  openModal(`<h3 class="head" style="margin-bottom:4px">გადატანა: ${n} კითხვა</h3><p class="hint">კითხვა ქვიზის ბოლოში მოხვდება, მერე გადაათრიე სასურველ ადგილას.${M.moveIds.some(id => M.questions[id] && M.questions[id].game === 2) ? ' თამაში 1-ში გადატანისას სწორი პასუხი წამყვანს პასუხად გამოუჩნდება.' : ''}</p>${grp(1, 'თამაში 1 · ბლიცი (ხმამაღლა წასაკითხი)')}${grp(2, 'თამაში 2 · ფაცი თუ ფუცი')}`);
 }
 function doMove(qzid) {
   const tz = M.quizzes[qzid]; if (!tz) return;
@@ -387,6 +390,11 @@ const ACT = {
     else { const m = {}; Object.entries(SOUND_PACKS[k]).forEach(([ev, name]) => { const e = Object.entries(M.sounds).find(([, x]) => x.name === name); m[ev] = e ? e[0] : 'default'; }); u.sounds = Object.assign({}, cur, m); }
     db.ref('config').update(u).then(() => { toast('ხმების ნაკრები: ' + ({ funny: 'სასაცილო', serious: 'სერიოზული', own: 'ჩემი' })[k]); render(true); });
   },
+  // ბრძოლები
+  badd() { const id = db.ref('battles').push().key; db.ref('battles/' + id).set({ name: 'ახალი ბრძოლა', created: Date.now(), pts: 0, win: { dur: 4, videoDelay: 2 } }).then(() => renderBattles()); },
+  async bdel(id) { const b = battlesM()[id]; if (b && await ask(`წაიშლება ბრძოლა „${b.name}“.`)) db.ref('battles/' + id).remove(); },
+  bclear(id) { db.ref('battles/' + id + '/win/media').remove(); },
+  bprev(id) { SFX.enable(); const b = battlesM()[id] || {}, w = b.win || {}; if (w.sound) SFX.preview(w.sound, 'podium'); if (w.media) showMedia({ url: w.media.url, id: w.media.id, loop: w.media.loop, kind: w.media.type === 'video' ? 'video' : undefined }, w.dur || 4, 'გამარჯვებული'); if (w.video) setTimeout(() => playFullVideo(w.video), (Number(w.videoDelay) || 2) * 1000); },
   // სერიები
   skadd(kind) { addStreakStep(kind); },
   skdel(fp) { const [w, path] = splitW(fp), c = streaksCopy(w), [k, n] = path.split('.'); delete c[k][n]; saveStreaks(c, w); renderStreaks(); },
@@ -451,7 +459,7 @@ async function readSound(file) {
   const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
   const dur = await new Promise(res => { const a = new Audio(); a.onloadedmetadata = () => res(a.duration); a.onerror = () => res(-1); a.src = data; });
   if (!(dur > 0)) throw 'ამ ფაილს ვერ ვკითხულობ. სცადე MP3 ან WAV.';
-  if (dur > MAX_SND_SEC + .5) throw `ხმა ${Math.round(dur)} წამია. მაქსიმუმი ${MAX_SND_SEC} წამია. გაჭერი უფრო მოკლედ.`;
+  if (dur > MAX_SND_SEC + .5) throw `ხმა ${Math.round(dur)} წამია. მაქსიმუმი ${MAX_SND_SEC} წამია. უფრო მოკლედ მოჭერი.`;
   return { data, dur, size: file.size };
 }
 async function addSound(file, replaceId) {
@@ -481,6 +489,7 @@ function renderRules() {
     ${line(RULE_NAMES.multi, c('g2', 'multi', g2.multi))}
     ${line(RULE_NAMES.typed, c('g2', 'typed', g2.typed), 'ავტომატურისას წამყვანს მაინც შეუძლია შეასწოროს. რამდენიმე სწორი პასუხი გამოყავი „/“-ით.')}
     ${line(RULE_NAMES.board, c('g2', 'board', g2.board))}
+    ${line('სურათი / ვიდეო / მუსიკა ტვ-ზე', sel('g2.media', g2.media, MEDIA_MODES), 'კითხვის დაწყებისას. თითო კითხვას შეგიძლია სხვა მისცე კითხვის რედაქტორში.')}
   </div>
   <div class="panel"><h3>${L('flag')}ფინალი</h3>
     ${line('რამდენი ადგილი გამოცხადდეს', sel('final.places', f.places, [[1, '1 (მხოლოდ გამარჯვებული)'], [2, '2'], [3, '3']]))}
@@ -493,6 +502,7 @@ function renderRules() {
     ${line(RULE_NAMES.pts, c('g1', 'pts', g1.pts))}
     ${line(RULE_NAMES.penalty, c('g1', 'penalty', g1.penalty))}
     ${line(RULE_NAMES.afterWrong, c('g1', 'afterWrong', g1.afterWrong))}
+    ${line('სურათი / ვიდეო / მუსიკა ტვ-ზე', sel('g1.media', g1.media, MEDIA_MODES), 'კითხვის დაწყებისას. თითო კითხვას შეგიძლია სხვა მისცე.')}
     ${g1.afterWrong === 'all' ? line(RULE_NAMES.sameTeamTwice, c('g1', 'sameTeamTwice', g1.sameTeamTwice), '„არა“ — ვინც შეცდა, ჯერ სხვამ უნდა სცადოს.') : ''}
   </div><p class="hint">ცვლილებები მაშინვე ინახება. წამყვანის გვერდზე თითო კითხვასთან ჩანს მოქმედი წესები.</p></div></div>`);
 }
@@ -534,20 +544,69 @@ function renderStreaks() {
     const thumb = m ? (isUrl ? `<img class="thumb" src="${esc(m.url)}" alt="" loading="lazy">` : m.type === 'img' && M.images[m.id] ? `<img class="thumb" src="${M.images[m.id].thumb}" alt="">` : m.type === 'video' ? `<span class="chip">${L('film')}ვიდეო</span>` : '') : '<span class="hint" style="margin:0">მედია არ არის</span>';
     return `<div class="skcard"><div class="row"><b class="grow">${n} ზედიზედ ${kind === 'correct' ? 'სწორი' : 'არასწორი'}${w === 't' ? ' (გუნდი)' : ''}</b><button class="btn" data-a="skprev" data-id="${p}">${L('play')}გადახედვა</button><button class="btn quiet icon danger" data-a="skdel" data-id="${p}" data-tip="საფეხურის წაშლა">${L('trash-2')}</button></div>
       <div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>GIF / სურათი / ვიდეო</b><div><div class="row">${thumb}<span class="grow"></span><label class="btn">${L('upload')}ატვირთვა<input type="file" data-skup="${p}" accept="image/*,video/*" hidden></label>${m ? `<button class="btn quiet icon" data-a="skclear" data-id="${p}" data-tip="მოხსნა">${L('x')}</button>` : ''}</div><input type="text" style="margin-top:8px" data-sk="${p}.media.url" value="${isUrl ? esc(m.url) : ''}" placeholder="ან ჩასვი ბმული (მაგ. tenor.com/….gif)"></div></div>
-      ${isUrl ? `<p class="hint warnline">${L('wifi')} ბმულით GIF-ს საღამოს ინტერნეტი სჭირდება. თუ გინდა, ჯობს „ატვირთვა“.</p>` : ''}
+      ${isUrl ? `<p class="hint warnline">${L('wifi')} ბმულით ჩასმულ GIF-ს საღამოს ინტერნეტი დასჭირდება. თუ გინდა, ჯობს „ატვირთვა“.</p>` : ''}
       <div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>ჩაშენებული ეფექტი</b><select data-sk="${p}.effect"><option value="">ეფექტის გარეშე</option>${fxs.map(([k, t]) => `<option value="${k}" ${st.effect === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       <div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>წარწერა</b><input type="text" data-sk="${p}.text" value="${esc(st.text || '')}" maxlength="40" placeholder="მაგ. ორჯერ ზედიზედ"></div>
-      <div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>ხმა</b>${sndSel(p, st.sound)}</div>
+      <div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>ხმა</b><div><div class="row">${sndSel(p, st.sound)}<label class="btn">${L('upload')}ხმის ატვირთვა<input type="file" data-sksnd="${p}" accept="audio/*" hidden></label></div>${st.sound && !sounds.some(([id, x]) => id === st.sound || x.name === st.sound) ? `<p class="hint warnline">${L('circle-alert')} „${esc(st.sound)}“ ჯერ ატვირთული არ არის — დააჭირე „ხმის ატვირთვა“.</p>` : ''}</div></div>
       <div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>ხანგრძლივობა</b><div class="row"><input type="number" style="max-width:110px" data-sk="${p}.dur" min="0.5" step="0.5" value="${st.dur === 'once' ? '' : esc(st.dur || 2)}" ${st.dur === 'once' ? 'disabled' : ''}><span class="muted">წამი</span><label class="row" style="gap:6px;font-weight:700"><input type="checkbox" data-sk="${p}.once" ${st.dur === 'once' ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink)">ერთხელ ბოლომდე</label></div></div>
       ${w === 't' ? '' : `<div class="evline" style="grid-template-columns:150px minmax(0,1fr)"><b>სად ჩანს</b><select data-sk="${p}.where"><option value="phone" ${st.where !== 'both' ? 'selected' : ''}>მხოლოდ მოთამაშის ტელეფონზე</option><option value="both" ${st.where === 'both' ? 'selected' : ''}>ტელეფონზე და ტვ-ზე</option></select></div>`}</div>`;
   };
   const list = (kind, w) => Object.entries((w === 't' ? tc : c)[kind] || {}).sort((a, b) => a[0] - b[0]).map(([n, st]) => card(kind, n, st || {}, w)).join('') || '<p class="hint">საფეხური არ არის.</p>';
-  setHTML(view, `<div class="panel"><div class="row"><h3 style="margin:0" class="grow">${L('flame')}სერიები: ზედიზედ სწორი და არასწორი (თამაში 2)</h3><select data-sk="on" style="max-width:220px"><option value="true" ${c.on !== false ? 'selected' : ''}>ჩართულია</option><option value="false" ${c.on === false ? 'selected' : ''}>გამორთულია</option></select></div><p class="hint" style="margin-top:10px">ეფექტი ჩნდება იმ მოთამაშის ტელეფონზე, ვინც სერიას მიაღწია, ჩვეულებრივი გამოაშკარავების შემდეგ. ნაწილობრივ სწორი პასუხი სერიას არ ცვლის. პასუხის არგაცემა არასწორად ითვლება.</p></div>
+  setHTML(view, `<div class="panel"><div class="row"><h3 style="margin:0" class="grow">${L('flame')}სერიები: ზედიზედ სწორი და არასწორი (თამაში 2)</h3><select data-sk="on" style="max-width:220px"><option value="true" ${c.on !== false ? 'selected' : ''}>ჩართულია</option><option value="false" ${c.on === false ? 'selected' : ''}>გამორთულია</option></select></div><p class="hint" style="margin-top:10px">ეფექტი ჩნდება იმ მოთამაშის ტელეფონზე, ვინც სერიას მიაღწია, პასუხის გახსნის შემდეგ. ნაწილობრივ სწორი პასუხი სერიას არ ცვლის. უპასუხოდ დატოვება არასწორად ითვლება.</p></div>
   <div class="cols"><div class="panel"><h3>${L('trophy')}ზედიზედ სწორი<span class="grow"></span><button class="btn" data-a="skadd" data-id="correct">${L('plus')}საფეხური</button></h3>${list('correct')}</div>
   <div class="panel"><h3>${L('circle-alert')}ზედიზედ არასწორი<span class="grow"></span><button class="btn" data-a="skadd" data-id="wrong">${L('plus')}საფეხური</button></h3>${list('wrong')}</div></div>
   <div class="panel"><div class="row"><h3 style="margin:0" class="grow">${L('zap')}თამაში 1 · გუნდების სერიები (ეფექტი გუნდის სვეტზე ტვ-ზე)</h3><select data-sk="t:on" style="max-width:220px"><option value="true" ${tc.on !== false ? 'selected' : ''}>ჩართულია</option><option value="false" ${tc.on === false ? 'selected' : ''}>გამორთულია</option></select></div><p class="hint" style="margin-top:10px">სწორი პასუხი ზრდის გუნდის სერიას. არასწორი ან სხვა გუნდის ქულა სერიას ამთავრებს — ცეცხლი კვამლით ქრება.</p></div>
   <div class="cols"><div class="panel"><h3>${L('trophy')}გუნდი: ზედიზედ სწორი<span class="grow"></span><button class="btn" data-a="skadd" data-id="t:correct">${L('plus')}საფეხური</button></h3>${list('correct', 't')}</div>
   <div class="panel"><h3>${L('circle-alert')}გუნდი: ზედიზედ არასწორი<span class="grow"></span><button class="btn" data-a="skadd" data-id="t:wrong">${L('plus')}საფეხური</button></h3>${list('wrong', 't')}</div></div>`);
+}
+
+// სერიის ხმის სახელი (გუნდის 3 ზედიზედ — „სერგია გამოუღებლად“)
+function streakSoundName(path) { const [w, p] = splitW(path), st = (streaksCopy(w)[p.split('.')[0]] || {})[p.split('.')[1]] || {}; return st.sound && !M.sounds[st.sound] ? st.sound : null; }
+// GIF-ის ბმული → ჩამოტვირთვა და ბიბლიოთეკაში შენახვა (დიდი Tenor GIF → პატარა უხმო ვიდეო)
+async function importMediaLink(url) {
+  const tries = [], tm = url.match(/tenor\.com\/(?:m\/)?([A-Za-z0-9_-]{11})[A-Za-z0-9_-]{5}\//);
+  if (tm) { tries.push({ u: `https://media.tenor.com/${tm[1]}AAAAC/x.gif`, kind: 'img' }, { u: `https://media.tenor.com/${tm[1]}AAAPo/x.mp4`, kind: 'video' }, { u: `https://media.tenor.com/${tm[1]}AAAAM/x.gif`, kind: 'img' }); }
+  else tries.push({ u: url, kind: /\.(mp4|webm)(\?|$)/i.test(url) ? 'video' : 'img' });
+  for (const t of tries) {
+    try {
+      const r = await fetch(t.u); if (!r.ok) continue;
+      const blob = await r.blob(), mb = blob.size / 1048576;
+      if (t.kind === 'img' && mb > MAX_GIF_MB) continue;           // ძალიან დიდი GIF — ვცდით ვიდეოს
+      if (t.kind === 'video' && mb > MAX_VID_MB) continue;
+      const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+      const name = 'GIF ' + new Date().toLocaleDateString('ka-GE');
+      if (t.kind === 'video') { const id = db.ref('library/videos').push().key; await db.ref('libdata/vid/' + id).set(data); await db.ref('library/videos/' + id).set({ name, size: blob.size, dur: 0, gif: true, created: TS }); return { type: 'video', id, loop: true }; }
+      const file = new File([blob], 'link.gif', { type: blob.type || 'image/gif' }); const id = await addImage(file); if (id) return { type: 'img', id };
+    } catch (e) {}
+  }
+  return null;
+}
+
+// ═════════ ბრძოლები ═════════
+const battlesM = () => M.battles || DEFAULT_BATTLES;
+function setBattleField(path, v) {
+  const [bid, key] = path.split('|'); if (!bid) return;
+  let val = v;
+  if (key === 'pts' || key === 'win.dur' || key === 'win.videoDelay') val = Math.max(0, Number(v) || 0);
+  if (key === 'win.once') return db.ref('battles/' + bid + '/win/dur').set(v ? 'once' : 4);
+  if (key === 'win.media.url') val = String(v).trim() ? { type: 'url', url: String(v).trim() } : null;
+  queueSave('b:' + path, () => db.ref('battles/' + bid + '/' + key.replace(/\./g, '/').replace(/\/url$/, '')).set(val === '' ? null : val), 0);
+}
+function renderBattles() {
+  const all = battlesM(), ids = Object.keys(all).sort((a, b) => (all[a].created || 0) - (all[b].created || 0)), sounds = Object.entries(M.sounds), vids = Object.entries(M.videos);
+  const card = id => {
+    const b = all[id] || {}, w = b.win || {}, m = w.media || null, isUrl = m && m.type === 'url';
+    const thumb = m ? (isUrl ? `<img class="thumb" src="${esc(m.url)}" alt="">` : m.type === 'img' && M.images[m.id] ? `<img class="thumb" src="${M.images[m.id].thumb}" alt="">` : `<span class="chip">${L('film')}ვიდეო</span>`) : '<span class="hint" style="margin:0">არ არის</span>';
+    return `<div class="panel"><div class="row"><input type="text" class="grow" data-bf="${id}|name" value="${esc(b.name || '')}" maxlength="40" style="font-weight:800;font-size:18px"><button class="btn" data-a="bprev" data-id="${id}">${L('play')}გადახედვა</button><button class="btn quiet icon danger" data-a="bdel" data-id="${id}" data-tip="ბრძოლის წაშლა">${L('trash-2')}</button></div>
+      <div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>ქულა გამარჯვებულს</b><input type="number" min="0" step="0.5" data-bf="${id}|pts" value="${esc(b.pts || 0)}" style="max-width:120px"></div>
+      <div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>გამარჯვების GIF / სურათი</b><div><div class="row">${thumb}<span class="grow"></span><label class="btn">${L('upload')}ატვირთვა<input type="file" data-bup="${id}|media" accept="image/*,video/*" hidden></label>${m ? `<button class="btn quiet icon" data-a="bclear" data-id="${id}" data-tip="მოხსნა">${L('x')}</button>` : ''}</div><input type="text" style="margin-top:8px" data-bf="${id}|win.media.url" value="${isUrl ? esc(m.url) : ''}" placeholder="ან ჩასვი ბმული"></div></div>
+      <div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>რამდენ ხანს ჩანს</b><div class="row"><input type="number" style="max-width:110px" min="1" step="0.5" data-bf="${id}|win.dur" value="${w.dur === 'once' ? '' : esc(w.dur || 4)}" ${w.dur === 'once' ? 'disabled' : ''}><span class="muted">წამი</span><label class="row" style="gap:6px;font-weight:700"><input type="checkbox" data-bf="${id}|win.once" ${w.dur === 'once' ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink)">ერთხელ ბოლომდე</label></div></div>
+      <div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>გამარჯვების ხმა</b><div class="row"><select data-bf="${id}|win.sound"><option value="">ხმის გარეშე</option>${sounds.map(([sid, x]) => `<option value="${sid}" ${w.sound === sid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><label class="btn">${L('upload')}ატვირთვა<input type="file" data-bup="${id}|sound" accept="audio/*" hidden></label></div></div>
+      <div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>გამარჯვებულის ვიდეო (სრულ ეკრანზე, ხმით)</b><div class="row"><select data-bf="${id}|win.video"><option value="">ვიდეოს გარეშე</option>${vids.map(([vid, x]) => `<option value="${vid}" ${w.video === vid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><label class="btn">${L('upload')}ვიდეოს ატვირთვა<input type="file" data-bup="${id}|video" accept="video/*" hidden></label></div></div>
+      <div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>ვიდეო იწყება</b><div class="row"><input type="number" style="max-width:110px" min="0" step="0.5" data-bf="${id}|win.videoDelay" value="${esc(w.videoDelay == null ? 2 : w.videoDelay)}"><span class="muted">წამში მილოცვის შემდეგ</span></div></div>
+      ${isUrl ? `<p class="hint warnline">${L('wifi')} ბმულს საღამოს ინტერნეტი სჭირდება — ჯობს „ატვირთვა“.</p>` : ''}</div>`;
+  };
+  setHTML(view, `<div class="row" style="margin-bottom:16px"><p class="hint grow" style="margin:0">ბრძოლა: რამდენიმე მოთამაშე გამოდის, დანარჩენები ტელეფონით აძლევენ ხმას. მართვა — წამყვანის გვერდზე „ბრძოლები“. გამარჯვებულის ვიდეო: მაქს. ${WIN_VID_SEC} წამი / ${WIN_VID_MB} მბ (MP4 საუკეთესოა).</p><button class="btn primary" data-a="badd">${L('plus')}ახალი ბრძოლა</button></div><div class="cols">${ids.map(card).join('')}</div>`);
 }
 
 // ═════════ სურათები ═════════
@@ -574,7 +633,8 @@ function renderSounds() {
 // ═════════ პარამეტრები ═════════
 function renderSettings() {
   setHTML(view, `<div class="cols"><div><div class="panel"><h3>${L('type')}თამაშის სახელი</h3><input type="text" id="s_name" value="${esc(gameName())}" maxlength="30"><p class="hint">ჩანს ლოგოში ტელეფონზე და ტვ-ზე.</p></div>
-  <div class="panel"><h3>${L('users')}გუნდები</h3><p class="hint">გუნდების რაოდენობა და სახელები ახლა „წესები“-შია.</p><button class="btn" data-sec="rules">${L('scale')}წესებზე გადასვლა</button></div>
+  <div class="panel"><h3>${L('users')}გუნდები</h3><p class="hint">გუნდების რაოდენობა და სახელები ახლა „წესებშია“.</p><button class="btn" data-sec="rules">${L('scale')}წესებზე გადასვლა</button></div>
+  <div class="panel"><h3>${L('check')}„ხელს ვაწერ“ შესვლისას</h3><textarea id="s_agree" rows="3">${esc(agreeText())}</textarea><p class="hint">ტელეფონზე ჩანს შესვლისას. ვიდრე არ მონიშნავენ, შესვლის ღილაკი არ ირთვება.</p></div>
   <div class="panel"><h3>${L('lock')}წამყვანის და ადმინის PIN</h3><div class="row"><input type="text" id="s_pin" class="grow" value="${esc(CFG.pin || DEFAULT_PIN)}" maxlength="12"><button class="btn primary" data-a="savepin">${L('check')}შენახვა</button></div><p class="hint">PIN მსუბუქი დაცვაა, რეპოზიტორია საჯაროა.</p></div></div>
   <div class="panel"><h3>${L('message-circle')}სასაცილო ტექსტები</h3><p class="hint">თითო ხაზი = ერთი ვარიანტი, თამაში შემთხვევით ირჩევს. ბოლო ადგილის ტექსტში {name} ჩაანაცვლებს სახელს.</p>${TEXT_KEYS.map(([k, label]) => `<label class="f">${label}</label><textarea data-text="${k}" rows="${Math.min(7, textList(k).length + 1)}">${esc(textList(k).join('\n'))}</textarea><button class="btn quiet" data-a="resettext" data-id="${k}" style="margin-top:6px">${L('rotate-ccw')}ნაგულისხმევზე დაბრუნება</button>`).join('')}</div></div>`);
 }
@@ -597,10 +657,13 @@ document.addEventListener('input', e => {
   if (t.id === 'ql-name') queueSave('qzname', () => db.ref('quizzes/' + M.selQuiz + '/name').set(t.value || 'ქვიზი'));
   else if (t.id === 'e_text' || t.classList.contains('e_opt') || t.id === 'e_ans') collect();
   else if (t.dataset.qrule && t.type === 'number') setRule(t.dataset.qrule, t.value);
+  else if (t.dataset.sk && /media\.url$/.test(t.dataset.sk)) {}
   else if (t.dataset.sk && (t.type === 'text' || t.type === 'number')) { const k = t.dataset.sk, v = t.value; queueSave('sk:' + k, () => { setStreakField(k, v); }, 500); }
   else if (t.dataset.rule && t.type === 'number') queueSave('r:' + t.dataset.rule, () => saveRule(t.dataset.rule, t.value));
   else if (t.dataset.imgname) queueSave('in' + t.dataset.imgname, () => db.ref('library/images/' + t.dataset.imgname + '/name').set(t.value));
   else if (t.dataset.sndname) queueSave('sn' + t.dataset.sndname, () => db.ref('library/sounds/' + t.dataset.sndname + '/name').set(t.value));
+  else if (t.id === 's_agree') queueSave('agree', () => db.ref('config/agreeText').set(t.value.trim() || null));
+  else if (t.dataset.bf && (t.type === 'text' || t.type === 'number')) { const k = t.dataset.bf, v = t.value; if (!/media\.url$/.test(k)) queueSave('bf:' + k, () => setBattleField(k, v), 500); }
   else if (t.id === 's_name') queueSave('gname', () => db.ref('config/gameName').set(t.value.trim() || null));
   else if (t.dataset.tname !== undefined) queueSave('tn' + t.dataset.tname, () => db.ref('teams/' + t.dataset.tname + '/name').set(t.value));
   else if (t.dataset.text) queueSave('tx' + t.dataset.text, () => {
@@ -616,7 +679,7 @@ document.addEventListener('change', async e => {
   else if (t.dataset.qev) setSfx(t.dataset.qev, t.value);
   else if (t.id === 'e_vid') { setField('vid', t.value); drawQListSoon(); }
   else if (t.id === 'e_vid_up' && t.files[0]) { const id = await addVideo(t.files[0]); if (id) { setField('vid', id); drawQListSoon(); } }
-  else if (t.id === 'e_mauto') { M.cur.mediaAuto = t.value === 'auto' ? 'auto' : null; scheduleQSave(); }
+  else if (t.id === 'e_mauto') { M.cur.mediaAuto = t.value || null; scheduleQSave(); }
   else if (t.id === 'e_fx_type') setFx(t.value === 'effect' ? { type: 'effect', name: 'tomatoes' } : t.value ? { type: t.value, id: null } : null);
   else if (t.id === 'e_fx_eff') setFx({ type: 'effect', name: t.value });
   else if (t.id === 'e_fx_vid') setFx({ type: 'video', id: t.value || null });
@@ -634,7 +697,19 @@ document.addEventListener('change', async e => {
   else if (t.dataset.replsnd && t.files[0]) { await addSound(t.files[0], t.dataset.replsnd); toast('ხმა ჩანაცვლდა'); }
   else if (t.dataset.evup && t.files[0]) { const id = await addSound(t.files[0]); if (id) { await db.ref('config/sounds/' + t.dataset.evup).set(id); toast('ხმა დაყენდა: ' + EV_NAME[t.dataset.evup]); render(true); } }
   else if (t.dataset.ev) { const m = Object.assign({}, CFG.sounds || {}, { [t.dataset.ev]: t.value }); db.ref('config').update({ sounds: m, soundsOwn: m, soundPack: 'own' }).then(() => render(true)); }
+  else if ((t.dataset.sk && /\.media\.url$/.test(t.dataset.sk)) || (t.dataset.bf && /media\.url$/.test(t.dataset.bf))) { // ბმული → ჩამოტვირთვა და შენახვა
+    const isB = !!t.dataset.bf, k = isB ? t.dataset.bf : t.dataset.sk, url = t.value.trim(), put = v => isB ? setBattleField(k.replace(/\.url$/, ''), v) : setStreakField(k.replace(/\.url$/, ''), v);
+    if (!url) put(null);
+    else { toast('ფაილს ვტვირთავ…'); const m = await importMediaLink(url); if (m) { put(m); toast('GIF ჩამოიტვირთა და შეინახა ბიბლიოთეკაში'); } else { put({ type: 'url', url }); note('ამ ბმულიდან ფაილი ვერ ჩამოვტვირთე. ჩამოტვირთე შენ კომპიუტერში და ატვირთე ღილაკით „ატვირთვა“. (ბმულს მაინც ვინახავ, მაგრამ საღამოს შეიძლება არ გამოჩნდეს.)'); } }
+    isB ? renderBattles() : renderStreaks(); }
   else if (t.dataset.sk) { setStreakField(t.dataset.sk, t.type === 'checkbox' ? t.checked : t.value); if (t.tagName === 'SELECT' || t.type === 'checkbox') renderStreaks(); }
+  else if (t.dataset.sksnd && t.files[0]) { const want = streakSoundName(t.dataset.sksnd); const id = await addSound(t.files[0]); if (id) { if (want) await db.ref('library/sounds/' + id + '/name').set(want); setStreakField(t.dataset.sksnd + '.sound', id); toast('ხმა აიტვირთა' + (want ? ': ' + want : '')); renderStreaks(); } }
+  else if (t.dataset.bf) { setBattleField(t.dataset.bf, t.type === 'checkbox' ? t.checked : t.value); if (t.tagName === 'SELECT' || t.type === 'checkbox') renderBattles(); }
+  else if (t.dataset.bup && t.files[0]) { const f = t.files[0], [bid, what] = t.dataset.bup.split('|'); let v = null;
+    if (what === 'video') { toast('ვიდეოს ვტვირთავ…'); const id = await addVideo(f, true); if (id) v = id; }
+    else if (what === 'sound') { const id = await addSound(f); if (id) v = id; }
+    else { const isVid = f.type.startsWith('video/'); const id = isVid ? await addVideo(f) : await addImage(f); if (id) v = isVid ? { type: 'video', id, loop: true } : { type: 'img', id }; }
+    if (v) { setBattleField(bid + '|' + (what === 'media' ? 'win.media' : what === 'video' ? 'win.video' : 'win.sound'), v); renderBattles(); } }
   else if (t.dataset.skup && t.files[0]) { const f = t.files[0], isVid = f.type.startsWith('video/'); const id = isVid ? await addVideo(f) : await addImage(f); if (id) { setStreakField(t.dataset.skup + '.media', { type: isVid ? 'video' : 'img', id }); renderStreaks(); } }
 });
 // გადათრევა: კითხვების რიგის შეცვლა

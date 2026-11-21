@@ -51,9 +51,9 @@ const SOUND_PACKS = {
 const DEFAULT_STREAKS = {
   on: true,
   correct: {
-    3: { media: { type: 'url', url: 'https://media1.tenor.com/m/QQD8UFMR8EsAAAAd/%D0%BA%D0%B0%D0%B2%D0%BA%D0%B0%D0%B7-%D0%BB%D0%B5%D0%B7%D0%B3%D0%B8%D0%BD%D0%BA%D0%B0.gif' }, dur: 2, sound: 'Correct answer tone', where: 'phone' },
+    3: { media: { type: 'url', url: 'https://media.tenor.com/QQD8UFMR8EsAAAPo/lezginka.mp4', kind: 'video', loop: true }, dur: 2, sound: 'Correct answer tone', where: 'phone' },
     4: { media: { type: 'url', url: 'https://media.tenor.com/3Dp_CACW64oAAAAM/cat-clapping-ai-cat-clapping.gif' }, dur: 'once', sound: 'Arcade game complete or approved mission', where: 'phone' },
-    5: { media: { type: 'url', url: 'https://media1.tenor.com/m/B7vSc-79QXAAAAAd/mindblow-mind-explosion.gif' }, dur: 3, effect: 'fireworks', sound: 'Medieval show fanfare announcement', where: 'phone' }
+    5: { media: { type: 'url', url: 'https://media.tenor.com/B7vSc-79QXAAAAPo/mindblow.mp4', kind: 'video', loop: true }, dur: 3, effect: 'fireworks', sound: 'Medieval show fanfare announcement', where: 'phone' }
   },
   wrong: {
     2: { effect: 'shake', text: 'ორჯერ ზედიზედ', sound: 'Negative answer lose', dur: 2, where: 'phone' },
@@ -63,10 +63,10 @@ const DEFAULT_STREAKS = {
   }
 };
 // ბლიცი: გუნდების სერიები (სვეტზე ეფექტი ტვ-ზე)
-const TEAM_FX = [['sparks', 'პატარა ნაპერწკლები'], ['flames', 'ცეცხლი სვეტზე'], ['bigflames', 'დიდი ცეცხლი და ნათება'], ['colfireworks', 'სვეტი ფეიერვერკით სკდება'], ['shiver', 'სვეტი კანკალებს და ნაცრისფერდება']];
+const TEAM_FX = [['sparks', 'პატარა ნაპერწკლები'], ['flames', 'ცეცხლი სვეტზე'], ['bigflames', 'დიდი ცეცხლი და ნათება'], ['colfireworks', 'სვეტი ფეიერვერკით ფეთქდება'], ['shiver', 'სვეტი კანკალებს და ნაცრისფერდება']];
 const DEFAULT_TEAM_STREAKS = {
   on: true,
-  correct: { 2: { effect: 'sparks' }, 3: { effect: 'flames' }, 4: { effect: 'bigflames' }, 5: { effect: 'colfireworks' } },
+  correct: { 2: { effect: 'sparks' }, 3: { effect: 'flames', sound: 'სერგია გამოუღებლად' }, 4: { effect: 'bigflames' }, 5: { effect: 'colfireworks' } },
   wrong: { 2: { effect: 'shiver' } }
 };
 function teamStreakCfg() { const c = CFG.teamStreaks; return c && (c.correct || c.wrong || c.on === false) ? c : DEFAULT_TEAM_STREAKS; }
@@ -87,8 +87,30 @@ function autoLock(players, answers) {
   db.ref('live').transaction(l => { if (!l || l.mode !== 'g2' || l.phase !== 'answering') return; l.phase = 'locked'; l.autoLocked = true; delete l.lockedAt; return l; }, null, false)
     .then(r => { if (r.committed) db.ref('live/lockedAt').set(TS); }); // სერვერის დრო — პასუხების დროსთან შესადარებლად
 }
+// შესვლის ეკრანის „ხელმოწერა“ (ადმინში იცვლება)
+const DEFAULT_AGREE = 'ხელს ვაწერ, რომ არცერთ ხუმრობას გულთან ახლოს არ მივიტან და მთელი ღამე არ ვიტირებ.';
+const agreeText = () => (CFG.agreeText && String(CFG.agreeText).trim()) || DEFAULT_AGREE;
+// ბრძოლები (ხმის მიცემის თამაში): ნაგულისხმევი, თუ ბაზაში ჯერ არ არის
+const DEFAULT_BATTLES = {
+  twerk: { name: 'Twerk Battle', created: 1, pts: 0, win: { media: { type: 'url', url: 'https://media.tenor.com/XgGffqpGefwAAAAj/twerk.gif' }, dur: 4 } },
+  sing: { name: 'Singing Battle', created: 2, pts: 0, win: { videoDelay: 2 } }
+};
+// ხმის მიცემა იკეტება, როცა ყველა ონლაინ ხმის მიმცემმა მისცა ხმა
+function battleAutoLock(players, perf, votes) {
+  const voters = Object.entries(players || {}).filter(([id, p]) => isOnline(p) && !(perf || {})[id]);
+  if (!voters.length || !voters.every(([id]) => votes && votes[id])) return;
+  db.ref('live').transaction(l => { if (!l || l.mode !== 'battle' || l.phase !== 'voting') return; l.phase = 'closed'; l.autoLocked = true; return l; }, null, false);
+}
+// ხმების დათვლა → [{ pid, n }], გამარჯვებულები (ფრეზე — ორივე)
+function battleCount(perf, votes) {
+  const c = {}; Object.keys(perf || {}).forEach(p => { c[p] = 0; });
+  Object.values(votes || {}).forEach(v => { if (c[v] !== undefined) c[v]++; });
+  const list = Object.entries(c).map(([pid, n]) => ({ pid, n })).sort((a, b) => b.n - a.n);
+  const top = list.length ? list[0].n : 0;
+  return { list, winners: list.filter(x => x.n === top && top > 0).map(x => x.pid), total: Object.values(c).reduce((a, b) => a + b, 0) };
+}
 function streakCfg() { const c = CFG.streaks; return c && (c.correct || c.wrong || c.on === false) ? c : DEFAULT_STREAKS; }
-// ზედიზედ სწორი (c) / არასწორი (w): კითხვები გამოაშკარავების დროის მიხედვით; ნაწილობრივი (p) სერიას არ ცვლის
+// ზედიზედ სწორი (c) / არასწორი (w): კითხვები პასუხის გახსნის დროის მიხედვით; ნაწილობრივი (p) სერიას არ ცვლის
 function streakOf(results, pid) {
   let c = 0, w = 0;
   Object.values(results || {}).filter(r => r && r._t).sort((a, b) => a._t - b._t).forEach(r => {
@@ -111,14 +133,14 @@ const DEFAULT_PIN = '5813';
 // ხმის მოვლენები (ადმინში თითოეულზე ირჩევ ხმას)
 const SOUND_EVENTS = [
   ['right', 'სწორი პასუხი'], ['wrong', 'არასწორი პასუხი'], ['partly', 'ნაწილობრივ სწორი'], ['buzz', 'ვიღაცამ დააჭირა ღილაკს'],
-  ['reveal', 'კითხვის გამოაშკარავება'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['drumroll', 'ფინალის დრამი (თითო ადგილის წინ)'], ['loser', 'ბოლო ადგილის გამოცხადება']
+  ['reveal', 'კითხვის გახსნა'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['drumroll', 'ფინალის დრამი (თითო ადგილის წინ)'], ['loser', 'ბოლო ადგილის გამოცხადება']
 ];
 
 // სასაცილო ტექსტები (ადმინში რედაქტირდება). {name} = მოთამაშის სახელი
 const TEXT_KEYS = [
   ['wait_start', 'ველოდებით დაწყებას'], ['wait_others', 'ველოდებით სხვების პასუხს'], ['buzz_first', 'შენ დააჭირე პირველმა'],
   ['too_slow', 'ძალიან ნელი / სხვა იყო სწრაფი'], ['correct', 'სწორია'], ['wrong', 'არასწორია'],
-  ['board_title', 'ქულების ცხრილის სათაური'], ['podium_title', 'პოდიუმის სათაური'], ['loser', 'ბოლო ადგილის გამოცხადება ({name} = სახელი)']
+  ['battle_win', 'ბრძოლის გამარჯვებულის მილოცვა ({name} = სახელი)'], ['board_title', 'ქულების ცხრილის სათაური'], ['podium_title', 'პოდიუმის სათაური'], ['loser', 'ბოლო ადგილის გამოცხადება ({name} = სახელი)']
 ];
 const DEFAULT_TEXTS = {
   wait_start: ['ცოტაც და დავიწყებთ! გაითბე თითები.', 'წამყვანი ჯერ წყალს სვამს. მოიცადე ცოტა.', 'ყველა იკრიბება... ზოგი ჯერ ფეხსაცმელს იცმევს.', 'ტვინი ჩართე, თამაში მალე იწყება!', 'ერთი ღრმა ამოსუნთქვა. ფაცი თუ ფუცი მალე გაირკვევა!'],
@@ -127,6 +149,7 @@ const DEFAULT_TEXTS = {
   too_slow: ['ამჯერად სხვა იყო უფრო სწრაფი.', 'ნელი აღმოჩნდი, მაგრამ ლამაზი.', 'ლოკოკინამაც გაგასწრო!', 'ეს კითხვა გამოგეპარა. ბოლო არ არის.', 'ერთი წამით დაგაგვიანდა... იქნებ ორით.'],
   correct: ['სწორია! გენიოსი ხარ... ან გაგიმართლა.', 'ვაიმე, ეს იცოდი?!', 'ბრავო! ტვინი დღეს ჩართულია.', 'სწორია! ახლა ნუ გაამპარტავნდები.', 'ზუსტად! აპლოდისმენტები შენს ტვინს.'],
   wrong: ['ეჰ, არა. მაგრამ თავდაჯერებულად უპასუხე!', 'არასწორია, მაგრამ ლამაზად ცდები.', 'ოხ... გუგლი ახლა ვერ გიშველის.', 'არა-არა-არა! მაგრამ ამას არავინ დაიმახსოვრებს. ალბათ.', 'ამჯერად არა! მომდევნოში გაგიმართლებს.'],
+  battle_win: ['{name} — ბრძოლის მეფე/დედოფალი! დარბაზი შენ გეკუთვნის!', 'გილოცავ, {name}! ხალხმა თქვა თავისი!', '{name} იმარჯვებს! დანარჩენებს — მომავალ წელს.', 'ტაში, {name}! ეს გამარჯვება ისტორიაში შევა... ამ ოთახის ისტორიაში მაინც.', '{name} — ხმების ჩემპიონი! ახლა ავტოგრაფები.'],
   board_title: ['ვინ დგას სათავეში?', 'ქულების ცხრილი: გული დაიჭირეთ!', 'ცხრილი არ იტყუება!', 'ვინ ჭკვიანობს და ვინ მხოლოდ ჩანს?'],
   podium_title: ['ჩემპიონების პოდიუმი!', 'ვინ ავიდა მწვერვალზე?', 'და გამარჯვებულები არიან...', 'დრამის ბგერა, თუ შეიძლება!'],
   loser: ['{name}, ყველაზე ნაკლები ქულა შენ მოაგროვე — სამაგიეროდ ყველაზე მეტი გული ჩადე!', '{name}-ს დღეს ქულები სადღაც დაეკარგა. შემდეგ ფაციფუცობანაზე აუცილებლად იპოვი!', 'ყველაზე ცოტა ქულა — {name}! მაგრამ ჩვენთვის მაინც ოქრო ხარ.', '{name}, ქულების დიეტაზე იყავი დღეს? ძალიან კარგად დაიცავი!', '{name} ცხრილის ბოლოშია, მაგრამ ჩვენს გულში — პირველ ადგილზე.']
@@ -150,7 +173,7 @@ function pickText(key, seed, name) {
 // ლოგო: სუფთა წარწერა + ერთი ვარდისფერი კითხვის ნიშანი
 function logoHtml(name) {
   name = name || gameName();
-  return `<div class="logo"><span class="word">${esc(name)}</span><span class="qm">?!</span></div>`;
+  return `<div class="logo"><span class="word">${esc(name)}</span></div>`;
 }
 
 // ───────── ქულები ─────────
@@ -173,14 +196,17 @@ function ranking(players, awarded) {
 
 // ───────── წესები (ადმინში იცვლება; კითხვას შეუძლია საკუთარი) ─────────
 const DEFAULT_RULES = {
-  1: { pts: 1, penalty: 0, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4 },
-  2: { ptsFirst: 1.5, ptsOther: 1, onlyFirst: false, penalty: 0, multi: 'partial', typed: 'manual', board: true }
+  1: { pts: 1, penalty: 0, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4, media: 'manual' },
+  2: { ptsFirst: 1.5, ptsOther: 1, onlyFirst: false, penalty: 0, multi: 'partial', typed: 'manual', board: true, media: 'img' }
 };
+// სურათი / ვიდეო / მუსიკა ტვ-ზე კითხვის დაწყებისას
+const MEDIA_MODES = [['manual', 'მხოლოდ როცა დავაჭერ'], ['img', 'სურათი თავისით, ვიდეო და მუსიკა — დაჭერით'], ['auto', 'ყველაფერი თავისით']];
+function mediaModeOf(q) { return (q && q.mediaAuto) || rulesG((q && q.game) || 2).media || 'manual'; }
 const RULE_OPTS = {
   onlyFirst: [[false, 'ყველა სწორი იღებს ქულას'], [true, 'ქულას იღებს მხოლოდ პირველი სწორი']],
   multi: [['partial', 'ნაწილობრივი ქულა: (სწორი − არასწორი) ÷ სწორების რაოდენობა'], ['exact', 'ქულა მხოლოდ ზუსტად სწორზე']],
-  typed: [['manual', 'წამყვანი თვითონ ნიშნავს'], ['auto', 'ავტომატური შედარება (გამოტოვებების და ასოების ზომის გარეშე)']],
-  afterWrong: [['others', 'ღილაკი იხსნება სხვა გუნდებისთვის'], ['all', 'ღილაკი იხსნება ყველასთვის, იგივე გუნდისთვისაც'], ['next', 'გადავდივართ შემდეგ კითხვაზე']],
+  typed: [['manual', 'წამყვანი თვითონ ნიშნავს'], ['auto', 'ავტომატური შედარება (ჰარებისა და რეგისტრის გარეშე)']],
+  afterWrong: [['others', 'ღილაკი იხსნება სხვა გუნდებისთვის'], ['all', 'ღილაკი იხსნება ყველასთვის, იმავე გუნდისთვისაც'], ['next', 'გადავდივართ შემდეგ კითხვაზე']],
   board: [[true, 'ჩართული'], [false, 'გამორთული']],
   sameTeamTwice: [[true, 'კი'], [false, 'არა, ჯერ სხვამ უნდა სცადოს']]
 };
@@ -198,10 +224,10 @@ function rulesText(r, q) {
   if (q && q.game === 1) {
     t.push(`სწორზე +${fmtPts(r.pts)}`);
     if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
-    t.push(r.afterWrong === 'next' ? 'შეცდომის შემდეგ — შემდეგი კითხვა' : r.afterWrong === 'all' ? (r.sameTeamTwice ? 'შეცდომის შემდეგ ყველას შეუძლია' : 'შეცდომის შემდეგ ყველას, ოღონდ ჯერ სხვამ') : 'შეცდომის შემდეგ — სხვა გუნდები');
+    t.push(r.afterWrong === 'next' ? 'შეცდომის შემდეგ — შემდეგი კითხვა' : r.afterWrong === 'all' ? (r.sameTeamTwice ? 'შეცდომის შემდეგ — ყველას შეუძლია' : 'შეცდომის შემდეგ — ყველას, ოღონდ ჯერ სხვამ') : 'შეცდომის შემდეგ — სხვა გუნდები');
     if (!r.teamsOn) t.push('ყველა თავისთვის');
   } else {
-    t.push(r.onlyFirst ? `ქულა მხოლოდ პირველ სწორს: +${fmtPts(r.ptsFirst)}` : `პირველი სწორი +${fmtPts(r.ptsFirst)}, დანარჩენი სწორი +${fmtPts(r.ptsOther)}`);
+    t.push(r.onlyFirst ? `ქულა მხოლოდ პირველ სწორს: +${fmtPts(r.ptsFirst)}` : `პირველი სწორი +${fmtPts(r.ptsFirst)}, დანარჩენი სწორები +${fmtPts(r.ptsOther)}`);
     if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
     if (q && q.type === 'multi') t.push(r.multi === 'exact' ? 'მხოლოდ ზუსტად სწორი' : 'ნაწილობრივი ქულა');
     if (q && q.type === 'text') t.push(r.typed === 'auto' ? 'ავტომატური შემოწმება' : 'წამყვანი ნიშნავს');

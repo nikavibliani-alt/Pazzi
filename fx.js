@@ -1,5 +1,5 @@
 // ფაციფუცობანა — ჩაშენებული ეფექტები (ფაილების გარეშე) და სურათის/GIF-ის/ვიდეოს ჩვენება ეკრანზე
-const FX_LIST = [['fireworks', 'ფეიერვერკი'], ['confetti', 'კონფეტის აფეთქება'], ['shake', 'ეკრანის რყევა'], ['tomatoes', 'ცვივა პომიდვრები'], ['crack', 'ეკრანის გაბზარვა'], ['stamp', 'დიდი წითელი შტამპი'], ['zoomscore', 'ქულის ნელი გადიდება'], ['money', 'ფულის წვიმა'], ['trophy', 'თასი ჩამოვარდება']];
+const FX_LIST = [['fireworks', 'ფეიერვერკი'], ['confetti', 'კონფეტის ფოიერვერკი'], ['shake', 'ეკრანის რყევა'], ['tomatoes', 'პომიდვრების წვიმა'], ['crack', 'ეკრანის გაბზარვა'], ['stamp', 'დიდი წითელი შტამპი'], ['zoomscore', 'ქულის ნელა გადიდება'], ['money', 'ფულის წვიმა'], ['trophy', 'თასის ჩამოვარდნა']];
 const FX_COLORS = ['#C2185B', '#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA', '#FBD0BE', '#ffffff', '#FFD15C'];
 
 function fxLayer(cls) { const d = document.createElement('div'); d.className = 'fxlayer ' + (cls || ''); d.setAttribute('aria-hidden', 'true'); document.body.appendChild(d); return d; }
@@ -69,21 +69,29 @@ async function gifDuration(src) {
 // სურათი / GIF / ვიდეო ეკრანის ცენტრში. dur: წამები ან 'once'
 async function showMedia(m, dur, caption) {
   if (!m) return;
-  let src = m.url || m.data, kind = m.kind || 'img';
+  let src = m.url || m.data, kind = m.kind || (m.type === 'video' || /\.(mp4|webm)(\?|$)/i.test(src || '') ? 'video' : 'img');
   if (!src && m.id) { src = (await db.ref((kind === 'video' ? 'libdata/vid/' : 'libdata/img/') + m.id).once('value')).val(); }
   if (!src) return;
   const L = fxLayer('fx-media');
   const cap = caption ? `<div class="fxcap">${esc(caption)}</div>` : '';
-  if (kind === 'video') {
-    L.innerHTML = `<div class="fxmediabox"><video src="${esc(src)}" autoplay playsinline></video>${cap}</div>`;
-    const v = L.querySelector('video'); v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
-    let ms = dur === 'once' ? 10500 : (Number(dur) || 3) * 1000;
-    if (dur === 'once') v.onended = () => { ms = 0; L.classList.add('fxgone'); setTimeout(() => L.remove(), 380); };
+  if (kind === 'video') { // loop = GIF-ის მსგავსი უხმო ვიდეო; სხვა შემთხვევაში — ხმით
+    L.innerHTML = `<div class="fxmediabox"><video src="${esc(src)}" autoplay playsinline ${m.loop ? 'loop muted' : ''}></video>${cap}</div>`;
+    const v = L.querySelector('video'); if (m.loop) v.muted = true; v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    let ms = dur === 'once' ? 12000 : (Number(dur) || 3) * 1000;
+    if (dur === 'once') { v.loop = false; v.onended = () => { L.classList.add('fxgone'); setTimeout(() => L.remove(), 380); }; }
     return fxEnd(L, ms);
   }
   L.innerHTML = `<div class="fxmediabox"><img src="${esc(src)}" alt="">${cap}</div>`;
   const ms = dur === 'once' ? await gifDuration(src) : (Number(dur) || 2) * 1000;
   return fxEnd(L, Math.min(ms, 12000));
+}
+// სრულ ეკრანზე ვიდეო ხმით (ბრძოლის გამარჯვებულის ვიდეო) — ბოლომდე
+async function playFullVideo(id) {
+  const src = (await db.ref('libdata/vid/' + id).once('value')).val(); if (!src) return;
+  const L = fxLayer('fx-fullvid');
+  L.innerHTML = `<video src="${src}" autoplay playsinline></video>`;
+  const v = L.querySelector('video'); v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  return new Promise(res => { const end = () => { L.classList.add('fxgone'); setTimeout(() => { L.remove(); res(); }, 380); }; v.onended = end; setTimeout(end, 600000); });
 }
 // სერიის ერთი საფეხური: მედია + ეფექტი + ხმა ერთად
 function playStep(step, o) {
@@ -91,7 +99,7 @@ function playStep(step, o) {
   o = o || {};
   if (step.sound && step.sound !== 'none' && window.SFX && SFX.ctx) SFX.preview(step.sound, 'right');
   const jobs = [];
-  if (step.media && (step.media.url || step.media.id)) jobs.push(showMedia({ url: step.media.url, id: step.media.id, kind: step.media.kind || (step.media.type === 'video' ? 'video' : 'img') }, step.dur, o.caption));
+  if (step.media && (step.media.url || step.media.id)) jobs.push(showMedia({ url: step.media.url, id: step.media.id, loop: step.media.loop, kind: step.media.kind || (step.media.type === 'video' ? 'video' : undefined) }, step.dur, o.caption));
   if (step.effect) jobs.push(runFx(step.effect, { text: step.text, score: o.score }));
   else if (step.text) jobs.push(runFx('stamp', { text: step.text, ms: 1800 }));
   return Promise.all(jobs);

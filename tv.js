@@ -59,6 +59,8 @@ db.ref('session').on('value', s => { S.session = s.val(); render(); });
 db.ref('players').on('value', s => { S.players = cleanPlayers(s.val()); if (S.live && S.live.phase === 'answering') autoLock(S.players, S.answers); render(); });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
 db.ref('tstreak').on('value', s => { S.tstreak = s.val() || {}; render(); });
+db.ref('battles').on('value', s => { S.battles = s.val() || null; render(); });
+db.ref('yt').on('value', s => { S.yt = s.val() || null; applyYt(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
 let tvStreakQ = null, shownStreak = {};
@@ -74,6 +76,10 @@ function tvStreakCheck() {
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {};
   handleSignals(l);
+  if (l.mode === 'battle' && l.round !== S.bround) {
+    if (S.bref) S.bref.off(); S.bround = l.round; S.bvotes = {};
+    S.bref = db.ref('bvotes/' + l.round); S.bref.on('value', v => { S.bvotes = v.val() || {}; if (S.live.phase === 'voting') battleAutoLock(S.players, S.live.perf, S.bvotes); render(); });
+  }
   setTimeout(tvStreakCheck, 0);
   if (l.qid !== S.curQ) {
     stopClip();
@@ -127,12 +133,13 @@ function render() {
   const l = S.live || {}, mode = l.mode || 'lobby';
   if (mode === 'g2' && l.view === 'scoreboard') return renderBoard();
   if (mode === 'final') return renderFinal();
+  if (mode === 'battle') return renderBattle();
   let h = '';
   if (mode === 'lobby') {
     const pl = Object.values(S.players);
     h = `<div class="scr">${logoHtml().replace('class="logo"', 'class="logo pop"')}<div class="sub">გახსენი ტელეფონზე: <b>${esc(joinInfo())}</b></div><div class="sub">თამაშის კოდი</div><div class="code pop">${esc(S.session ? S.session.code : '····')}</div><div class="chips">${pl.map(p => `<span class="chip pop"><span class="pic">${av(p.avatar)}</span>${esc(p.name)}</span>`).join('')}</div></div>`;
   } else if (mode === 'break') {
-    h = `<div class="scr"><div class="title pop">შესვენება</div><div class="sub">სასმელი, საჭმელი, ქირქილი!</div>${teamCols(null)}</div>`;
+    h = `<div class="scr"><div class="title pop">შესვენება</div><div class="sub">სასმელი, საჭმელი, ჭორაობა!</div>${teamCols(null)}</div>`;
   } else if (mode === 'g1') h = g1();
   else if (mode === 'g2') h = g2();
   view(h, mode + '|' + (l.qid || '') + '|' + (l.phase || '') + '|' + (l.buzz ? l.buzz.pid : '') + '|' + ((l.media || {}).show || ''));
@@ -301,7 +308,7 @@ function confetti(loser) {
 render();
 
 
-// ───────── „როცა ვინმე შეცდება“: სურათი / GIF / ვიდეო / ეფექტი ტვ-ზე გამოაშკარავებისას ─────────
+// ───────── „როცა ვინმე შეცდება“: სურათი / GIF / ვიდეო / ეფექტი ტვ-ზე პასუხის გახსნისას ─────────
 function maybeWrongFx(l) {
   const fx = l.q && l.q.wrongFx; if (!fx || l.q.type === 'poll') return;
   const right = (l.reveal && l.reveal.right) || {};
@@ -324,4 +331,70 @@ async function playWrongFx(fx) {
   } else if (fx.type === 'effect' && fx.name) {
     box.remove(); runFx(fx.name, { text: fx.name === 'stamp' ? 'შეცდომა!' : '' });
   } else box.remove();
+}
+
+
+// ───────── ბრძოლები (ხმის მიცემა) ─────────
+const battlesAll = () => S.battles || DEFAULT_BATTLES;
+let bresKey = null;
+function renderBattle() {
+  const l = S.live, b = battlesAll()[l.bid] || { name: 'ბრძოლა' }, perf = Object.keys(l.perf || {}).filter(id => S.players[id]);
+  if (l.phase === 'result') return battleResult(l, b, perf);
+  bresKey = null;
+  const voters = Object.keys(S.players).filter(id => !(l.perf || {})[id]), voted = Object.keys(S.bvotes || {}).filter(id => voters.includes(id)).length;
+  const status = l.phase === 'voting' ? `<div class="cnt">ხმა მისცა ${voted}/${voters.length}</div>` : `<div class="cnt ok">${l.autoLocked ? 'ყველამ მისცა ხმა!' : 'ხმის მიცემა დაიხურა'}</div>`;
+  view(`<div class="scr battle"><div class="title pop">${esc(b.name)}</div><div class="bperf stag">${perf.map(id => `<div class="bcard"><div class="pic">${av(S.players[id].avatar)}</div><div class="nm">${esc(S.players[id].name)}</div></div>`).join('')}</div>${status}</div>`, 'battle|' + l.round + '|' + l.phase);
+}
+// შედეგი: მუსიკა ქრება → დრამი → ზოლები იზრდება → გამარჯვებული + ეფექტები → (ვიდეო)
+function battleResult(l, b, perf) {
+  const key = 'bres' + l.round; if (bresKey === key) return; bresKey = key; boardKey = null; finKey = null; lastHtml = null; lastKey = key;
+  const { list, winners } = battleCount(l.perf, S.bvotes), max = Math.max(1, ...list.map(x => x.n));
+  const names = winners.filter(id => S.players[id]).map(id => S.players[id].name).join(' და ');
+  swapScreen(app, `<div class="scr battle"><div class="title pop">${esc(b.name)}</div><div class="sub" id="bdrum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div>
+    <div class="bbars hidden" id="bbars">${list.filter(x => S.players[x.pid]).map(x => `<div class="bbar ${winners.includes(x.pid) ? 'win' : ''}"><span class="pic">${av(S.players[x.pid].avatar)}</span><span class="nm">${esc(S.players[x.pid].name)}</span><span class="track"><span class="fill" style="--w:${Math.round(100 * x.n / max)}%"></span></span><b>${x.n}</b></div>`).join('')}</div>
+    <div class="bwin hidden" id="bwin">${winners.length ? `<div class="bwpics">${winners.filter(id => S.players[id]).map(id => `<span class="pic">${av(S.players[id].avatar)}</span>`).join('')}</div><div class="bwname">${esc(names)}</div><div class="bwtext">${esc(pickText('battle_win', l.round, names))}</div>` : '<div class="bwname">ხმები არ არის</div>'}</div></div>`, 'slide');
+  ytFade();
+  setTimeout(() => {
+    const d = document.getElementById('bdrum'); if (d) d.classList.add('rolling');
+    const drum = SFX.playStoppable('drumroll');
+    setTimeout(() => {
+      drum.stop(); SFX.crash();
+      const bb = document.getElementById('bbars'), dd = document.getElementById('bdrum'); if (dd) dd.remove(); if (bb) bb.classList.remove('hidden');
+      setTimeout(() => {
+        const w = document.getElementById('bwin'); if (w) w.classList.remove('hidden'); if (!winners.length) return;
+        SFX.play('podium');
+        const win = b.win || {};
+        if (win.sound) SFX.preview(win.sound, 'podium');
+        if (win.media && (win.media.url || win.media.id)) showMedia({ url: win.media.url, id: win.media.id, loop: win.media.loop, kind: win.media.kind || (win.media.type === 'video' ? 'video' : undefined) }, win.dur || 4, names);
+        if (win.effect) runFx(win.effect, { text: names });
+        if (win.video) setTimeout(() => playFullVideo(win.video), (Number(win.videoDelay) || 2) * 1000);
+      }, 1400);
+    }, DRUM_MS);
+  }, ytPlaying() ? 1300 : 200);
+}
+
+// ───────── YouTube მუსიკა ტვ-დან (დამალული ფლეერი; „ვიდეოს ჩვენება“ — ეკრანზე) ─────────
+let ytP = null, ytReady = false, ytVid = null, ytLoading = false;
+function ytEnsure() {
+  if (ytP || ytLoading) return; ytLoading = true;
+  const box = document.createElement('div'); box.id = 'ytbox'; box.className = 'ytbox'; box.innerHTML = '<div id="ytplayer"></div>'; document.body.appendChild(box);
+  const make = () => { ytP = new YT.Player('ytplayer', { width: '100%', height: '100%', playerVars: { autoplay: 0, controls: 0, playsinline: 1, rel: 0, modestbranding: 1 }, events: { onReady: () => { ytReady = true; applyYt(); } } }); };
+  if (window.YT && YT.Player) make();
+  else { window.onYouTubeIframeAPIReady = make; const sc = document.createElement('script'); sc.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(sc); }
+}
+const ytPlaying = () => !!(ytP && ytReady && ytP.getPlayerState && ytP.getPlayerState() === 1);
+let ytSeen = null;
+function applyYt() {
+  const y = S.yt; if (!y || !y.vid) return;
+  if (!ytP) return ytEnsure(); if (!ytReady) return;
+  document.getElementById('ytbox').classList.toggle('show', !!y.show);
+  const sig = y.n + y.cmd; if (sig === ytSeen) { ytP.setVolume(Number(y.vol == null ? 80 : y.vol)); return; } ytSeen = sig;
+  if (y.cmd === 'play') { if (y.vid !== ytVid) { ytVid = y.vid; ytP.loadVideoById(y.vid); } else ytP.playVideo(); ytP.setVolume(Number(y.vol == null ? 80 : y.vol)); }
+  else if (y.cmd === 'pause') ytP.pauseVideo();
+  else if (y.cmd === 'stop') { ytP.stopVideo(); }
+  else if (y.cmd === 'fade') ytFade();
+}
+function ytFade() {
+  if (!ytPlaying()) return; const v0 = ytP.getVolume(); let k = 0;
+  const t = setInterval(() => { k++; ytP.setVolume(Math.max(0, Math.round(v0 * (1 - k / 12)))); if (k >= 12) { clearInterval(t); ytP.pauseVideo(); ytP.setVolume(v0); } }, 100);
 }

@@ -26,7 +26,7 @@ function updateSndBtn() {
   const b = $('#sndBtn'); if (!b) return;
   b.hidden = !(S.pid && S.players[S.pid] && !(SFX.ctx && SFX.ctx.state === 'running'));
 }
-let lastPh = null; // { qid, phase } — მხოლოდ ახალ გამოაშკარავებაზე ვუკრავთ
+let lastPh = null; // { qid, phase } — მხოლოდ პასუხის ახალ გახსნაზე ვუკრავთ
 function onLiveForSound(l) {
   const prev = lastPh; lastPh = { qid: l.qid, phase: l.phase, mode: l.mode };
   if (SFX.ctx && l.q && l.q.sfx) SFX.preload(l.q.sfx);
@@ -41,7 +41,7 @@ function onLiveForSound(l) {
   S.streakFor = l.qid; checkStreak();
 }
 function flyPoints(p) { const d = document.createElement('div'); d.className = 'ptsfly'; d.textContent = '+' + fmtPts(p); document.body.appendChild(d); setTimeout(() => d.remove(), 1600); }
-// სერია: ამ კითხვის შედეგი ჩაიწერა? → ეფექტი ამ მოთამაშის ტელეფონზე, ჩვეულებრივი გამოაშკარავების შემდეგ
+// სერია: ამ კითხვის შედეგი ჩაიწერა? → ეფექტი ამ მოთამაშის ტელეფონზე, პასუხის გახსნის შემდეგ
 function checkStreak() {
   const qid = S.streakFor; if (!qid || !S.pid || !S.results || !S.results[qid] || S.results[qid][S.pid] === undefined) return;
   S.streakFor = null;
@@ -69,6 +69,10 @@ db.ref('results').on('value', s => { S.results = s.val() || {}; checkStreak(); }
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {}; S.ready.live = true;
+  if (l.mode === 'battle' && l.round !== S.bround) { // ბრძოლის ხმები — მიმდინარე რაუნდი
+    if (S.bref) S.bref.off(); S.bround = l.round; S.bvotes = {};
+    S.bref = db.ref('bvotes/' + l.round); S.bref.on('value', v => { S.bvotes = v.val() || {}; render(); });
+  }
   onLiveForSound(l);
   if (l.qid !== S.curQ) {
     S.curQ = l.qid || null; S.sel = []; S.typed = ''; S.myAns = undefined;
@@ -109,17 +113,18 @@ async function join() {
   const ex = Object.entries(S.players).find(([, p]) => (p.name || '').trim().toLowerCase() === name.toLowerCase());
   if (ex) { f.match = ex[0]; f.err = ''; return render(); }
   if (!f.avatar) { f.err = 'აირჩიე პერსონაჟი'; return render(); }
+  if (!f.agree) { f.err = 'ჯერ მონიშნე „ხელს ვაწერ“'; return render(); }
   S.busy = true; f.err = '';
   try {
     const pid = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     // პერსონაჟს ბაზა აძლევს მხოლოდ ერთს — ორი ტელეფონი ერთდროულად ვერ აიღებს
     const lock = await db.ref('avatars/' + f.avatar).transaction(cur => { const o = lockOwner(cur); return (o && o !== pid && (S.players[o] || Date.now() - ((cur && cur.t) || 0) < 60000)) ? undefined : { pid, t: Date.now() }; });
-    if (!lock.committed) { f.err = 'ეს პერსონაჟი უკვე აიღეს, აირჩიე სხვა'; f.avatar = null; S.busy = false; return render(); }
+    if (!lock.committed) { f.err = 'ეს პერსონაჟი უკვე დაკავებულია, აირჩიე სხვა'; f.avatar = null; S.busy = false; return render(); }
     const team = null; // გუნდებს წამყვანი ანაწილებს
     await db.ref('players/' + pid).set({ name, avatar: f.avatar, team, joined: TS });
     store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
     S.pid = pid; if (S.curQ) bindAns();
-  } catch (e) { f.err = 'ვერ შევედით, სცადე თავიდან'; }
+  } catch (e) { f.err = 'შესვლა ვერ მოხერხდა, სცადე თავიდან'; }
   S.busy = false; presence(); render(); updateSndBtn();
 }
 // წამყვანის მიცემული 4-ციფრიანი კოდით დაბრუნება
@@ -176,6 +181,7 @@ function view(html, key) {
   const id = ae && ae.id, ss = ae && ae.selectionStart;
   const kind = key && lastKey && key !== lastKey ? (key.split('|')[0] !== lastKey.split('|')[0] || key.split('|')[1] !== lastKey.split('|')[1] ? 'slide' : 'fade') : null;
   swapScreen(app, html, kind); lastHtml = html; if (key) lastKey = key;
+  fitJoin();
   if (id) { const n = document.getElementById(id); if (n) { n.focus(); try { n.setSelectionRange(ss, ss); } catch (e) {} } }
 }
 function msg(avatar, text, small) { return `<div class="msg pop"><div class="pic">${av(avatar)}</div>${esc(text)}${small ? `<small>${esc(small)}</small>` : ''}</div>`; }
@@ -196,18 +202,31 @@ function render() {
   const top = `<div class="top" style="--t:${TEAM_HUES[t]}"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
   let body = '';
   if (mode === 'lobby') body = msg(m.avatar, pickText('wait_start', S.pid + 'lobby'));
-  else if (mode === 'break') body = msg(m.avatar, 'შესვენებაა!', 'დაისვენე და მიირთვი რამე.');
+  else if (mode === 'break') body = msg(m.avatar, 'შესვენებაა!', 'დაისვენე და წაიხემსე.');
   else if (mode === 'g1') body = g1Html(m, l);
   else if (mode === 'g2') body = g2Html(m, l);
   else if (mode === 'final') body = msg(m.avatar, 'ფინალი! შეხედე ეკრანს.');
+  else if (mode === 'battle') body = battleHtml(m, l);
   view(top + body, [mode, l.qid || '', l.phase || '', l.view || ''].join('|'));
   updateSndBtn();
 }
 
+// უკვე თამაშშია ეს სახელი? (დაბრუნებას „ხელმოწერა“ აღარ სჭირდება)
+function nameTaken() { const n = (S.form.name || '').trim().toLowerCase(); return !!n && Object.values(S.players).some(p => (p.name || '').trim().toLowerCase() === n); }
+// პერსონაჟების არე ზუსტად ჩაეტიოს ხილულ ეკრანზე (Safari-ს ზოლების ჩათვლით)
+function fitJoin() {
+  const g = document.getElementById('avs'), jb = document.querySelector('.joinbar'); if (!g || !jb) return;
+  const vh = window.visualViewport ? visualViewport.height : innerHeight;
+  g.style.maxHeight = '420px';                       // ვზომავთ დანარჩენის სიმაღლეს, მერე ბადე ავსებს დარჩენილ ადგილს
+  const rest = document.documentElement.scrollHeight - g.offsetHeight;
+  g.style.maxHeight = Math.max(110, Math.min(420, Math.floor(vh - rest - 2))) + 'px';
+}
+if (window.visualViewport) visualViewport.addEventListener('resize', fitJoin);
+addEventListener('resize', fitJoin);
 function joinHtml() {
   const f = S.form;
   const mp = f.match && S.players[f.match];
-  if (mp) return `${logoHtml()}<div class="card join-card pop" style="text-align:center"><div class="msg" style="padding:6px 0 12px">ეს შენ ხარ?</div><div class="pic" style="width:110px;height:110px;margin:0 auto 12px">${av(mp.avatar)}</div><div style="font-size:24px;font-weight:800">${esc(mp.name)}</div><div class="muted" style="margin:4px 0 6px">${fmtPts(scoreMap(S.awarded)[f.match] || 0)} ქულა</div><button class="btn primary block lg" id="rejoinYes">კი, გავაგრძელო</button><button class="btn block" id="rejoinNo" style="margin-top:10px">არა, სხვა სახელს ავირჩევ</button></div>`;
+  if (mp) return `${logoHtml()}<div class="card join-card pop" style="text-align:center"><div class="msg" style="padding:6px 0 12px">ეს შენ ხარ?</div><div class="pic" style="width:110px;height:110px;margin:0 auto 12px">${av(mp.avatar)}</div><div style="font-size:24px;font-weight:800">${esc(mp.name)}</div><div class="muted" style="margin:4px 0 6px">${fmtPts(scoreMap(S.awarded)[f.match] || 0)} ქულა</div><button class="btn primary block lg" id="rejoinYes">კი, მე ვარ</button><button class="btn block" id="rejoinNo" style="margin-top:10px">არა, სხვა სახელს ავირჩევ</button></div>`;
   if (f.byCode) return `${logoHtml()}<div class="card join-card pop">
   <div class="msg" style="padding:0 0 6px;font-size:22px">უკვე ვთამაშობდი</div>
   <label class="f">თამაშის კოდი</label>
@@ -218,29 +237,41 @@ function joinHtml() {
   <button class="btn primary block lg" id="rcodeBtn">გაგრძელება</button>
   <button class="btn block" id="rcodeBack" style="margin-top:10px">უკან</button></div>`;
   return `${logoHtml()}<div class="card join-card pop">
-  <p class="hint join-hint">${ico('sound')}ჩართე ხმა და გამორთე ჩუმი რეჟიმი</p>
-  <label class="f">თამაშის კოდი</label>
-  <input id="fcode" type="tel" inputmode="numeric" maxlength="6" value="${esc(f.code)}" placeholder="0000" autocomplete="off">
-  <label class="f">შენი სახელი</label>
-  <input id="fname" type="text" maxlength="14" value="${esc(f.name)}" placeholder="მაგ: ნიკა" autocomplete="off">
+  <p class="hint join-hint">${ico('sound')}ჩართე ხმა და გამორთე უხმო რეჟიმი</p>
+  <div class="jrow"><div><label class="f" for="fcode">კოდი</label><input id="fcode" type="tel" inputmode="numeric" maxlength="6" value="${esc(f.code)}" placeholder="0000" autocomplete="off"></div>
+  <div><label class="f" for="fname">შენი სახელი</label><input id="fname" type="text" maxlength="14" value="${esc(f.name)}" placeholder="მაგ: ნიკა" autocomplete="off"></div></div>
   <label class="f">აირჩიე პერსონაჟი</label>
   <div class="avs" id="avs">${AVATAR_IDS.map(a => { const o = lockOwner((S.avatars || {})[a]), owner = o && S.players[o]; return owner ? `<button class="taken" disabled aria-label="დაკავებულია">${av(a)}<span class="avn">${esc(owner.name)}</span></button>` : `<button data-av="${a}" class="${f.avatar === a ? 'sel' : ''}" aria-label="პერსონაჟი">${av(a)}</button>`; }).join('')}</div>
   <div class="err">${esc(f.err)}</div>
-  <div class="joinbar"><button class="btn primary block lg" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა</button>
+  <div class="joinbar"><label class="agree"><input type="checkbox" id="agree" ${f.agree ? 'checked' : ''}><span>${esc(agreeText())}</span></label><button class="btn primary block lg" id="joinBtn" ${S.busy || !(f.agree || nameTaken()) ? 'disabled' : ''}>${nameTaken() ? 'გაგრძელება' : 'შესვლა'}</button>
   <button class="btn block quietlink" id="rcodeOpen">უკვე ვთამაშობდი</button></div></div>`;
 }
 
+// ბრძოლა: გამომსვლელები ვერ აძლევენ ხმას; დანარჩენები ირჩევენ ერთს (შეცვლა შეიძლება დახურვამდე)
+function battleHtml(m, l) {
+  const perf = l.perf || {}, ids = Object.keys(perf).filter(id => S.players[id]);
+  if (perf[S.pid]) return msg(m.avatar, 'შენ გამოდიხარ, წარმატებები!');
+  if (l.phase === 'result') { const w = battleCount(perf, S.bvotes).winners.filter(id => S.players[id]); return w.length ? msg(S.players[w[0]].avatar, (w.length > 1 ? 'გამარჯვებულები: ' : 'გამარჯვებული: ') + w.map(id => S.players[id].name).join(' და '), 'შეხედე ეკრანს!') : msg(m.avatar, 'ხმები არ არის'); }
+  const my = (S.bvotes || {})[S.pid];
+  if (l.phase !== 'voting') return msg(m.avatar, 'ხმის მიცემა დასრულდა', my && S.players[my] ? 'შენ ხმა მიეცი: ' + S.players[my].name : '');
+  return `<div class="qtext">ვის აძლევ ხმას?</div>` + ids.map(id => `<button class="opt votebtn ${my === id ? 'sel' : ''}" data-vote="${id}"><span class="pic">${av(S.players[id].avatar)}</span><span>${esc(S.players[id].name)}</span></button>`).join('') + `<div class="msg" style="padding:8px 0"><small>${my ? 'ხმა მიცემულია. შეგიძლია შეცვალო, სანამ დაიხურება.' : 'ერთი ხმა გაქვს.'}</small></div>`;
+}
+function vote(pid) {
+  const l = S.live || {}; if (l.mode !== 'battle' || l.phase !== 'voting' || (l.perf || {})[S.pid] || !(l.perf || {})[pid]) return;
+  S.bvotes = Object.assign({}, S.bvotes, { [S.pid]: pid }); render();
+  db.ref('bvotes/' + l.round + '/' + S.pid).set(pid).then(() => battleAutoLock(S.players, l.perf, S.bvotes));
+}
 function g1Html(m, l) {
-  if (teamsOn() && (m.team == null || m.team >= teamCount())) return msg(m.avatar, 'მოელოდე, გუნდში გადანაწილებას', 'წამყვანი მალე გადაგანაწილებთ გუნდებში.');
+  if (teamsOn() && (m.team == null || m.team >= teamCount())) return msg(m.avatar, 'დაელოდე გუნდში გადანაწილებას', 'წამყვანი მალე გაგანაწილებთ გუნდებში.');
   if (!l.qid) return (teamsOn() ? `<div class="teamhello" style="--t:${TEAM_HUES[m.team]}">შენი გუნდი<b>${esc(teamName(S.teams, m.team))}</b></div>` : '') + msg(m.avatar, pickText('wait_start', S.pid + 'g1'));
   const b = l.buzz, seed = l.qid + S.pid, key = buzzKeyOf(l, m, S.pid), solo = key[0] === 'p';
   if (l.phase === 'open') {
-    if (buzzBlocked(l, key)) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>${solo ? 'შენ უკვე სცადე' : 'თქვენმა გუნდმა უკვე სცადა'}. ახლა სხვებს აძლევენ შანსს.</small></div>`;
+    if (buzzBlocked(l, key)) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>${solo ? 'შენ უკვე სცადე' : 'თქვენმა გუნდმა უკვე სცადა'}. ახლა სხვების ჯერია.</small></div>`;
     return `<button class="buzz" id="buzz">დააჭირე!</button>`;
   }
   if (l.phase === 'missed') return msg(m.avatar, pickText('wrong', seed), 'ამ კითხვაზე ღილაკი დაიკეტა. ველოდებით შემდეგს.');
   if (b && b.pid === S.pid) {
-    return `<button class="buzz won" disabled>${esc(pickText('buzz_first', seed))}</button>` + (l.phase === 'right' ? msg(m.avatar, pickText('correct', seed)) : `<div class="msg"><small>თქვით პასუხი ხმამაღლა!</small></div>`);
+    return `<button class="buzz won" disabled>${esc(pickText('buzz_first', seed))}</button>` + (l.phase === 'right' ? msg(m.avatar, pickText('correct', seed)) : `<div class="msg"><small>თქვი პასუხი ხმამაღლა!</small></div>`);
   }
   if (b) return msg(b.avatar, `${b.name} დააჭირა პირველმა`, l.phase === 'right' ? pickText('correct', seed) : pickText('too_slow', seed));
   return msg(m.avatar, '…');
@@ -267,7 +298,7 @@ function g2Html(m, l) {
       return qt + `<textarea id="typed" maxlength="80" placeholder="ჩაწერე პასუხი…">${esc(S.typed)}</textarea><button class="btn primary block lg" id="sendText">გაგზავნა</button>`;
     }
   }
-  if (phase === 'locked') return qt + (a ? sentHtml(q, a) + msg(m.avatar, 'პასუხები დაიკეტა', 'ველოდებით გამოაშკარავებას…') : msg(m.avatar, pickText('too_slow', seed), 'პასუხები დაიკეტა'));
+  if (phase === 'locked') return qt + (a ? sentHtml(q, a) + msg(m.avatar, 'პასუხები დაიკეტა', 'ველოდებით სწორ პასუხს…') : msg(m.avatar, pickText('too_slow', seed), 'პასუხები დაიკეტა'));
   if (phase === 'revealed') {
     const pts = Number(S.awarded[l.qid] && S.awarded[l.qid][S.pid]) || 0;
     const right = !!(l.reveal && l.reveal.right && l.reveal.right[S.pid]);
@@ -280,7 +311,7 @@ function g2Html(m, l) {
     let res;
     if (q.type === 'poll') res = msg(m.avatar, 'მადლობა ხმისთვის!');
     else if (right && pts > 0) res = msg(m.avatar, pickText('correct', seed), `+${fmtPts(pts)} ქულა`);
-    else if (right) res = msg(m.avatar, pickText('correct', seed), 'სწორია, მაგრამ ქულა უფრო სწრაფებს ერგოთ.');
+    else if (right) res = msg(m.avatar, pickText('correct', seed), 'სწორია, მაგრამ ქულები უფრო სწრაფებს ერგოთ.');
     else if (!a) res = msg(m.avatar, pickText('too_slow', seed));
     else res = msg(m.avatar, pickText('wrong', seed), pts < 0 ? `−${fmtPts(-pts)} ქულა` : '');
     let corr = '';
@@ -307,7 +338,7 @@ function scoreHtml(l) {
   const idx = r.findIndex(x => x.id === S.pid);
   const row = (p, i) => `<div class="row ${p.id === S.pid ? 'me' : ''}"><span>${i + 1}.</span><span class="pic">${av(p.avatar)}</span><span style="flex:1">${esc(p.name)}</span><b>${fmtPts(p.score)} <small style="font-weight:400">ქულა</small></b></div>`;
   const mine = idx >= 5 ? row(r[idx], idx) : '';
-  return `<div class="title head">${esc(pickText('board_title', l.qid))}</div>${r.slice(0, 5).map(row).join('')}${mine}<div class="msg"><small>სრული ცხრილი ეკრანზეა</small></div>`;
+  return `<div class="title head">${esc(pickText('board_title', l.qid))}</div>${r.slice(0, 5).map(row).join('')}${mine}<div class="msg"><small>სრული ცხრილი ტვ-ზეა</small></div>`;
 }
 
 // ───────── დაჭერები ─────────
@@ -323,6 +354,7 @@ document.addEventListener('click', e => {
   else if (t.id === 'rejoinYes') rejoin(true);
   else if (t.id === 'rejoinNo') rejoin(false);
   else if (t.id === 'buzz') buzz();
+  else if (t.dataset.vote) vote(t.dataset.vote);
   else if (t.dataset.pick !== undefined) sendAns(Number(t.dataset.pick));
   else if (t.dataset.tog !== undefined) {
     const i = Number(t.dataset.tog);
@@ -332,9 +364,10 @@ document.addEventListener('click', e => {
   else if (t.id === 'sendMulti') { if (S.sel.length) sendAns(S.sel.slice().sort()); }
   else if (t.id === 'sendText') { const v = S.typed.trim(); if (v) sendAns(v); }
 });
+document.addEventListener('change', e => { if (e.target.id === 'agree') { S.form.agree = e.target.checked; S.form.err = ''; render(); } });
 document.addEventListener('input', e => {
   if (e.target.id === 'fcode') S.form.code = e.target.value;
-  else if (e.target.id === 'fname') S.form.name = e.target.value;
+  else if (e.target.id === 'fname') { S.form.name = e.target.value; render(); }
   else if (e.target.id === 'typed') S.typed = e.target.value;
   else if (e.target.id === 'frcode') S.form.rcode = e.target.value;
 });
