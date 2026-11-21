@@ -79,6 +79,17 @@ function renderChrome() {
   if (keys !== lastKeys) { $('#keys').innerHTML = keys; lastKeys = keys; }
   icons();
 }
+// დიდი „თამაშის დაწყება“ ღილაკი ზემოთ; თუ ვერ დაიწყება — რატომ და სად გასწორდეს
+function startBanner(g, qs) {
+  const mode = g === 1 ? 'g1' : 'g2', l = S.live, n = Object.keys(S.players).length;
+  if (l.mode === mode && l.qid) return '';
+  const qz = activeQuiz(g);
+  let why = null, link = 'admin.html';
+  if (!qz || !S.quizzes[qz]) why = 'დღევანდელი ქვიზი არ არის არჩეული — აირჩიე ადმინში.';
+  else if (!qs.length) { why = 'ამ ქვიზში ჯერ კითხვები არ არის — დაამატე ადმინში.'; link = 'admin.html#quiz=' + qz; }
+  return `<div class="panel startbar"><div class="grow"><b style="font-size:20px">თამაში ${g}: ${g === 1 ? 'ბლიცი' : 'ფაცი თუ ფუცი'}</b><div class="muted">${why ? esc(why) : `შემოსულია ${n} ${g === 1 ? 'მოთამაშე' : 'მონაწილე'}${quizName(g) ? ' · ქვიზი: ' + esc(quizName(g)) : ''}`}</div></div>
+  ${why ? `<button class="btn big primary" disabled>${L('play')}თამაშის დაწყება</button><a class="btn" href="${link}" target="_blank">${L('settings')}ადმინში გასწორება</a>` : `<button class="btn big primary" data-act="${g === 1 ? 'g1first' : 'g2first'}" id="startBtn">${L('play')}თამაში ${g}-ის დაწყება</button>`}</div>`;
+}
 function noQuiz(g) { return `<div class="panel"><h3>${L('circle-alert')}ქვიზი არ არის არჩეული</h3><p>გახსენი <a href="admin.html">admin.html</a> და აირჩიე, რომელი ქვიზი გამოიყენება დღეს თამაში ${g}-ისთვის.</p></div>`; }
 function stepRow(step) {
   return `<div class="steprow"><button class="btn big icon" data-act="jump" data-id="-1" data-tip="წინა კითხვა (←)">${L('chevron-left')}</button>
@@ -92,7 +103,6 @@ const rulesLine = q => q ? `<div class="shortcuts" style="margin:-4px 0 12px">${
 
 // ───────── თამაში 1 ─────────
 function g1Section() {
-  if (!activeQuiz(1)) return noQuiz(1);
   const l = S.live, qs = listQ(1), cur = l.mode === 'g1' ? l.qid : null, q = cur && S.questions[cur];
   const rows = qs.map((x, i) => `<div class="qr ${x.id === cur ? 'on' : ''}" data-act="g1show" data-id="${x.id}"><span class="qn">${i + 1}</span><div class="qmain"><b>${esc(x.text || '(ცარიელი)')}</b><small>პასუხი: ${esc(x.answer || '—')}</small></div>${qIcons(x)}</div>`).join('') || '<div class="empty">ამ ქვიზში კითხვები არ არის.</div>';
   const idx = qs.findIndex(x => x.id === cur), b = l.buzz;
@@ -110,7 +120,7 @@ function g1Section() {
     <div class="marks"><button class="btn big mark-ok" data-act="right" ${l.phase === 'buzzed' ? '' : 'disabled'}>${L('check')}სწორია +1</button><button class="btn big mark-no" data-act="wrong" ${l.phase === 'buzzed' ? '' : 'disabled'}>${L('x')}არასწორია</button></div>`;
   } else body = `<p class="muted">აირჩიე კითხვა სიიდან ან დააჭირე „კითხვის ჩვენება“-ს.</p>`;
   const extras = q ? `<div class="row" style="margin-top:14px">${q.snd ? audioBtns() : ''}<button class="btn quiet" data-act="showans">${L('eye')}პასუხი ტვ-ზე</button></div>` : '';
-  return `<div class="ctl-grid"><div class="qlist">${rows}</div><div>
+  return `${startBanner(1, qs)}<div class="ctl-grid"><div class="qlist">${rows}</div><div>
   <div class="panel"><h3>${L('zap')}${q ? `კითხვა ${idx + 1} / ${qs.length}` : 'ახლა'}<span class="grow"></span>${tvNote}</h3>${body}
   ${stepRow(step)}<div class="shortcuts">${kbd('Space')} შემდეგი ნაბიჯი · ${kbd('←')}${kbd('→')} წინა / შემდეგი · ${kbd('R')} სწორია · ${kbd('W')} არასწორია</div>${extras}</div>
   <div class="panel"><h3>${L('users')}${teamsOn() ? 'გუნდების ქულები' : 'ქულები'}</h3>${teamRows()}</div></div></div>`;
@@ -118,7 +128,6 @@ function g1Section() {
 
 // ───────── თამაში 2 ─────────
 function g2Section() {
-  if (!activeQuiz(2)) return noQuiz(2);
   const l = S.live, qs = listQ(2), cur = l.mode === 'g2' ? l.qid : null, q = cur && S.questions[cur];
   const rows = qs.map((x, i) => `<div class="qr ${x.id === cur ? 'on' : ''} ${S.awarded[x.id] ? 'played' : ''}" data-act="g2show" data-id="${x.id}"><span class="qn">${i + 1}</span><div class="qmain"><b>${esc(x.text || '(ცარიელი)')}</b></div>${qIcons(x)}<span class="tag t-${x.type}">${TYPE_NAMES[x.type] || ''}</span></div>`).join('') || '<div class="empty">ამ ქვიზში კითხვები არ არის.</div>';
   const idx = qs.findIndex(x => x.id === cur);
@@ -136,15 +145,21 @@ function g2Section() {
     const votes = opts.map((_, i) => va.filter(([, a]) => q.type === 'multi' ? arr(a.a).includes(i) : Number(a.a) === i).length);
     body = `<p class="stage-q">${esc(q.text)}</p>${rulesLine(q)}${stepper}<span class="statusbar" style="margin:0">უპასუხა ${answered.size} / ${players.length}</span>`;
     if (q.type === 'text') {
-      const sorted = va.slice().sort((a, b) => (a[1].t || 0) - (b[1].t || 0));
+      const sorted = va.slice().sort(ansOrder);
       detail = `<div class="anspill">${L('circle-check-big')}სწორი პასუხი: ${esc(q.answer || '—')}</div>` + (sorted.map(([pid, a], i) => { const ok = typedOk(q, a); return `<div class="tans ${ok ? 'ok' : (i === 0 ? 'first' : '')}"><b>${i === 0 ? `${L('star')} პირველი` : (i + 1) + '.'}</b>${pic(S.players[pid].avatar)}<span>${esc(S.players[pid].name)}</span><span class="t"><b>${esc(a.a)}</b></span><button class="btn ${ok ? 'mark-ok' : ''}" data-act="mark" data-id="${pid}">${L(ok ? 'circle-check-big' : 'check')}${ok ? 'სწორია' : 'სწორია?'}</button></div>`; }).join('') || '<p class="muted">პასუხები ჯერ არ მოსულა…</p>');
     } else {
-      detail = opts.map((o, i) => { const g = corr.includes(i) && q.type !== 'poll'; return `<div class="vote ${g ? 'good' : ''}"><span class="lt">${LETTERS[i]}</span><span class="grow">${esc(o)}</span><b>${votes[i]}</b>${g ? L('circle-check-big') : ''}</div>`; }).join('');
+      const ord = va.slice().sort(ansOrder), rank = {}; ord.forEach(([p], i) => { rank[p] = i + 1; });
+      detail = opts.map((o, i) => {
+        const g = corr.includes(i) && q.type !== 'poll';
+        const who = ord.filter(([, a]) => q.type === 'multi' ? arr(a.a).map(Number).includes(i) : Number(a.a) === i);
+        return `<div class="vote ${g ? 'good' : ''}"><span class="lt">${LETTERS[i]}</span><span class="grow">${esc(o)}</span><b>${votes[i]}</b>${g ? L('circle-check-big') : ''}</div>` +
+          (who.length ? `<div class="who" style="margin:4px 0 10px 38px">${who.map(([p]) => `<span class="${rank[p] === 1 ? 'firstpick' : ''}" title="${rank[p]}-ე">${rank[p] === 1 ? L('star') : `<small>${rank[p]}</small>`}${pic(S.players[p].avatar)}${esc(S.players[p].name)}</span>`).join('')}</div>` : '');
+      }).join('') + `<p class="hint">ნომერი = რიგი, ვინ როდის უპასუხა. ტვ-ზე ეს არ ჩანს, სანამ „გამოაშკარავებას“ არ დააჭერ.</p>`;
     }
     detail += `<div class="who">${players.map(([id, p]) => `<span class="${answered.has(id) ? 'yes' : 'no'}">${pic(p.avatar)}${esc(p.name)}</span>`).join('')}</div>`;
   }
   const tvNote = l.mode !== 'g2' ? `<span class="chip">${L('monitor')}ტვ-ზე: ${MODE_NAMES[l.mode || 'lobby']}</span>` : '';
-  return `<div class="ctl-grid"><div class="qlist">${rows}</div><div>
+  return `${startBanner(2, qs)}<div class="ctl-grid"><div class="qlist">${rows}</div><div>
   <div class="panel"><h3>${L('circle-help')}${q ? `კითხვა ${idx + 1} / ${qs.length}` : 'ახლა'}<span class="grow"></span>${tvNote}</h3>${body}
   ${stepRow(step)}<div class="shortcuts">${kbd('Space')} შემდეგი ნაბიჯი · ${kbd('←')}${kbd('→')} წინა / შემდეგი კითხვა</div>
   ${q && q.snd ? `<div class="row" style="margin-top:14px">${audioBtns()}</div>` : ''}</div>
@@ -155,7 +170,7 @@ function g2Section() {
 function playersSection() {
   const pl = Object.entries(S.players).sort((x, y) => (x[1].joined || 0) - (y[1].joined || 0)), sc = scoreMap(S.awarded), tOn = teamsOn(), n = teamCount();
   const online = pl.filter(([, p]) => isOnline(p)).length;
-  const rows = pl.map(([id, p]) => `<div class="prow2"><span class="odot ${isOnline(p) ? 'on' : ''}" data-tip="${isOnline(p) ? 'ონლაინ' : 'ოფლაინ'}"></span>${pic(p.avatar)}<span class="grow">${esc(p.name)}</span>${tOn ? ttag(p.team, teamName(S.teams, p.team)) : ''}<span class="muted">${fmtPts(sc[id] || 0)} ქულა</span>${tOn ? `<select data-team="${id}" aria-label="გუნდი">${Array.from({ length: Math.max(n, (p.team || 0) + 1) }, (_, i) => `<option value="${i}" ${p.team === i ? 'selected' : ''}>${esc(teamName(S.teams, i))}</option>`).join('')}</select>` : ''}<button class="btn quiet icon" data-act="pmenu" data-id="${id}" data-tip="მეტი">${L('ellipsis')}</button></div>`).join('') || '<p class="muted">ჯერ არავინ შემოსულა.</p>';
+  const rows = pl.map(([id, p]) => `<div class="prow2"><span class="odot ${isOnline(p) ? 'on' : ''}" data-tip="${isOnline(p) ? 'ონლაინ' : 'ოფლაინ'}"></span>${pic(p.avatar)}<span class="grow">${esc(p.name)}</span>${tOn ? ttag(p.team, teamName(S.teams, p.team)) : ''}<span class="muted">${fmtPts(sc[id] || 0)} ქულა</span>${tOn ? `<select data-team="${id}" aria-label="გუნდი">${Array.from({ length: Math.max(n, (p.team || 0) + 1) }, (_, i) => `<option value="${i}" ${p.team === i ? 'selected' : ''}>${esc(teamName(S.teams, i))}</option>`).join('')}</select>` : ''}<button class="btn icon" data-act="rcode" data-id="${id}" data-tip="დაბრუნების კოდი">${L('qr-code')}</button><button class="btn quiet icon" data-act="pmenu" data-id="${id}" data-tip="მეტი">${L('ellipsis')}</button></div>`).join('') || '<p class="muted">ჯერ არავინ შემოსულა.</p>';
   return `<div class="cols"><div class="panel"><h3>${L('users')}მოთამაშეები (${pl.length}) · ონლაინ ${online}</h3>${rows}<p class="hint" style="margin-top:12px">ვინც ტელეფონს გადატვირთავს ან სხვა ტელეფონიდან შემოვა, იგივე კოდით და სახელით დაბრუნდება თავისი ქულით.</p></div><div>
   <div class="panel"><h3>${L('key-round')}თამაშის კოდი</h3><div class="bigcode">${esc(S.session ? S.session.code : '')}</div><p class="muted">ტელეფონზე: ${esc(location.href.replace(/host\.html.*$/, '').replace(/^https?:\/\//, ''))}</p></div>
   <div class="panel"><h3>${L('volume-2')}ხმის შემოწმება ტვ-ზე</h3><div class="row"><button class="btn" data-act="sfx" data-id="right">${L('check')}სწორი</button><button class="btn" data-act="sfx" data-id="wrong">${L('x')}არასწორი</button></div></div>
@@ -173,7 +188,7 @@ function boardSection() {
        <div class="steprow"><button class="btn big icon" data-act="fstep" data-id="-1" data-tip="უკან" ${step <= 0 ? 'disabled' : ''}>${L('chevron-left')}</button><button class="btn big primary" id="stepBtn" data-act="fstep" data-id="1" ${step >= max ? 'disabled' : ''}>${L('party-popper')}${step >= max ? 'ყველაფერი გამოცხადდა' : 'შემდეგი გამოცხადება'}</button></div><div class="shortcuts">${kbd('Space')} შემდეგი გამოცხადება</div>`;
   const rank = r.map((p, i) => `<div class="prow2"><span class="qn" style="min-width:30px;height:24px;border-radius:999px;background:${i === 0 ? 'var(--pink)' : 'var(--pink-l)'};color:${i === 0 ? '#fff' : 'inherit'};display:grid;place-items:center;font-size:13px;font-weight:700">${i + 1}</span>${pic(p.avatar)}<span class="grow">${esc(p.name)}</span><b>${fmtPts(p.score)}</b> <span class="muted">ქულა</span></div>`).join('') || '<p class="muted">ჯერ არავინ შემოსულა.</p>';
   return `<div class="cols"><div><div class="panel"><h3>${L('flag')}ფინალი</h3>${fin}</div><div class="panel"><h3>${L('zap')}თამაში 1 · გუნდები</h3>${teamRows()}</div></div>
-  <div class="panel"><h3>${L('trophy')}თამაში 2 · მოთამაშეები</h3>${rank}</div></div>`;
+  <div class="panel"><h3>${L('trophy')}თამაში 2 · მონაწილეები</h3>${rank}</div></div>`;
 }
 
 // ───────── მოქმედებები ─────────
@@ -186,7 +201,7 @@ const A = {
   sfx(kind) { db.ref('live/sfx').set({ kind, n: Date.now() }); },
   async reset() {
     if (!(await ask('წაიშლება ყველა მოთამაშე, ქულა და პასუხი. კითხვები და პარამეტრები დარჩება.', 'დიახ, განულება'))) return;
-    const u = { players: null, answers: null, awarded: null, live: { mode: 'lobby' }, 'session/code': String(Math.floor(1000 + Math.random() * 9000)), 'session/nextTeam': 0 };
+    const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, live: { mode: 'lobby' }, 'session/code': String(Math.floor(1000 + Math.random() * 9000)), 'session/nextTeam': 0 };
     for (let i = 0; i < 4; i++) u['teams/' + i + '/score'] = 0;
     db.ref().update(u); toast('თამაში განულდა');
   },
@@ -226,9 +241,9 @@ const A = {
   async g2show(id) {
     const q = S.questions[id]; if (!q) return;
     if (S.awarded[id] && !(await popup({ title: 'თავიდან ჩვენება?', text: 'ამ კითხვას უკვე აქვს ქულები. თუ თავიდან აჩვენებ, ამ კითხვის ქულები და პასუხები წაიშლება.', ok: 'თავიდან ჩვენება', danger: true }))) return;
-    const pub = { type: q.type, text: q.text || '', img: q.img || null, snd: q.snd || null, sfx: q.sfx || null, rules: rulesFor(q) };
+    const pub = { type: q.type, text: q.text || '', img: q.img || null, snd: q.snd || null, sfx: q.sfx || null, rules: rulesFor(q), wrongFx: q.wrongFx || null };
     if (q.type !== 'text') pub.options = arr(q.options);
-    db.ref().update({ ['answers/' + id]: null, ['awarded/' + id]: null, live: { mode: 'g2', qid: id, q: pub, phase: 'answering', view: 'question' } });
+    db.ref().update({ ['answers/' + id]: null, ['awarded/' + id]: null, ['seq/' + id]: null, live: { mode: 'g2', qid: id, q: pub, phase: 'answering', view: 'question' } });
   },
   g2next() { const qs = listQ(2), i = qs.findIndex(x => x.id === S.live.qid), nx = qs[i + 1]; if (nx) A.g2show(nx.id); else toast('კითხვები დასრულდა'); },
   async resetscores() {
@@ -236,6 +251,7 @@ const A = {
     const u = { awarded: null }; for (let i = 0; i < 6; i++) u['teams/' + i + '/score'] = 0;
     db.ref().update(u); toast('ქულები განულდა');
   },
+  rcode(id) { rejoinCode(id); },
   pmenu(id, b) {
     openMenu(b, [
       { icon: 'pencil', label: 'სახელის შეცვლა', run: () => renamePlayer(id) },
@@ -248,8 +264,8 @@ const A = {
   async g2reveal() {
     const qid = S.live.qid, q = S.questions[qid]; if (!q) return;
     S.answers = (await db.ref('answers/' + qid).once('value')).val() || {};
-    const { aw, right } = computeAwards();
-    db.ref().update({ ['awarded/' + qid]: Object.keys(aw).length ? aw : null, 'live/phase': 'revealed', 'live/reveal': { correct: arr(q.correct), answer: q.answer || '', right: Object.keys(right).length ? right : null } });
+    const { aw, right, first } = computeAwards();
+    db.ref().update({ ['awarded/' + qid]: Object.keys(aw).length ? aw : null, 'live/phase': 'revealed', 'live/reveal': { correct: arr(q.correct), answer: q.answer || '', right: Object.keys(right).length ? right : null, first: first || null } });
   },
   g2board() { db.ref('live/view').set('scoreboard'); },
   mark(pid) {
@@ -281,6 +297,23 @@ function addPoints(bz, qid, pts) {
   if (!pts) return;
   if (teamsOn()) db.ref('teams/' + bz.team + '/score').transaction(v => Math.round(((v || 0) + pts) * 100) / 100);
   else db.ref('awarded/' + qid + '/' + bz.pid).transaction(v => { const n = Math.round(((v === true ? 1 : Number(v) || 0) + pts) * 100) / 100; return n || null; });
+}
+// პირადი 4-ციფრიანი კოდი + QR: მოთამაშე ნებისმიერი ტელეფონიდან ბრუნდება. ახალი კოდი ძველს აუქმებს.
+async function rejoinCode(id, fresh) {
+  const p = S.players[id]; if (!p) return;
+  const map = (await db.ref('rejoin').once('value')).val() || {};
+  let code = !fresh && p.rcode && map[p.rcode] === id ? p.rcode : null;
+  if (!code) {
+    do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (map[code]);
+    const u = { ['rejoin/' + code]: id, ['players/' + id + '/rcode']: code };
+    if (p.rcode && map[p.rcode] === id) u['rejoin/' + p.rcode] = null;
+    await db.ref().update(u);
+  }
+  const url = location.href.replace(/host\.html.*$/, '') + 'index.html?code=' + encodeURIComponent(S.session ? S.session.code : '') + '&r=' + code + (NS ? '&ns=' + encodeURIComponent(NS) : '');
+  const pr = popup({ title: `${p.name} — დაბრუნება`, text: 'მოთამაშემ გახსნას თამაში ნებისმიერ ტელეფონზე (ან დაასკანეროს QR), დააჭიროს „უკვე ვთამაშობდი“ და ჩაწეროს ეს კოდი.', html: `<div class="rjcode">${code}</div><div id="qrbox" class="qrbox"></div><input type="hidden" name="act" value="ok">`, ok: 'კარგი', cancel: 'ახალი კოდი' });
+  try { new QRCode(document.getElementById('qrbox'), { text: url, width: 180, height: 180, colorDark: '#3A0F2A', colorLight: '#ffffff' }); } catch (e) {}
+  const v = await pr;
+  if (!v) rejoinCode(id, true);
 }
 async function renamePlayer(id) {
   const p = S.players[id]; if (!p) return;

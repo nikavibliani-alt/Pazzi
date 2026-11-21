@@ -424,3 +424,71 @@ body.admin.drawer-open #qz-col { display: none; }
 .app input[type=number] { width: 100%; height: var(--h); padding: 0 12px; border: 1.5px solid var(--pink-l); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; outline: none; transition: border-color var(--ease); }
 .app input[type=number]:focus { border-color: var(--pink); }
 .prow2 .muted { white-space: nowrap; }
+
+/* რბილი გადასვლები */
+.slide-in { animation: slideIn .3s ease-out both; }
+.slide-out { animation: slideOut .3s ease-in both; }
+.fade-in { animation: fadeIn2 .25s ease-out both; }
+.fade-out { animation: fadeOut2 .25s ease-in both; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes slideOut { to { opacity: 0; transform: translateX(-36px); } }
+@keyframes fadeIn2 { from { opacity: 0; } }
+@keyframes fadeOut2 { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .slide-in, .fade-in { animation: none; } }
+
+/* ტელეფონი: ზუსტად ეკრანზე, ჩაჭრილი კუთხეების და ხელსაწყოების გათვალისწინებით */
+html { -webkit-text-size-adjust: 100%; }
+body.phone { min-height: 100vh; min-height: 100dvh; padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); overflow-x: hidden; font-size: 18px; }
+.phone #app { width: 100%; max-width: 100%; }
+.phone .qtext, .phone .opt, .phone .msg, .phone .card, .phone .row, .phone .top .nm { overflow-wrap: anywhere; word-break: normal; }
+.phone .logo { font-size: clamp(24px, 7.6vw, 32px); flex-wrap: wrap; text-align: center; }
+.phone .qtext { font-size: clamp(19px, 5.6vw, 24px); }
+.phone .opt { min-height: 60px; font-size: clamp(17px, 5vw, 22px); padding: 10px 14px; gap: 12px; }
+.phone .opt .lt { width: 38px; height: 38px; }
+.phone .btn { min-height: 48px; font-size: 18px; }
+.phone .btn.lg { font-size: 20px; padding: 16px 20px; }
+.phone input, .phone textarea, .phone select { font-size: 18px !important; }
+.phone .join-card input { font-size: 22px !important; min-height: 52px; }
+.phone .join-card { padding: 18px; }
+.phone .avs { gap: 8px; }
+.phone .buzz { width: min(100%, 360px, 56dvh); font-size: clamp(30px, 9vw, 40px); margin: 14px auto; }
+.phone .buzz:disabled { font-size: clamp(18px, 5.4vw, 24px); }
+.phone .buzz.won { font-size: clamp(20px, 6vw, 28px); padding: 0 24px; }
+.phone .msg { font-size: clamp(19px, 5.6vw, 24px); padding: 20px 4px; }
+.phone .msg .pic { width: clamp(72px, 22vw, 100px); height: clamp(72px, 22vw, 100px); }
+.phone .top { padding: 6px 10px 6px 6px; gap: 10px; }
+.phone .top .pic { width: 46px; height: 46px; }
+.phone textarea { min-height: 96px; }
+.phone .title { font-size: clamp(22px, 6.6vw, 28px); }
+.join-hint { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 0 0 4px; font-size: 14px; }
+.join-hint .ic { width: 18px; height: 18px; color: var(--pink); }
+.quietlink { margin-top: 10px; border-color: transparent !important; background: transparent !important; color: var(--muted); font-size: 16px !important; }
+.sndbtn { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 60; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--pink); color: #fff; font-weight: 700; font-size: 16px; box-shadow: var(--shadow); }
+
+/* ტვ: „შეცდომის“ ეფექტები */
+.fxbox { position: fixed; inset: 0; z-index: 50; pointer-events: none; display: grid; place-items: center; background: rgba(251, 230, 238, .55); animation: fadeIn2 .25s ease-out; }
+.fxbox.fxout { animation: fadeOut2 .35s ease-in forwards; }
+.fxmedia { max-width: 80vw; max-height: 80vh; border-radius: 2vw; box-shadow: var(--shadow); background: #fff; animation: slam .25s ease-out both; }
+.fxbox .tom { position: absolute; top: -12vh; display: block; animation: tomFall linear forwards; }
+.fxbox .tom svg { width: 100%; height: auto; display: block; }
+@keyframes tomFall { to { transform: translateY(125vh) rotate(260deg); } }
+.fxbox .stamp { font-family: var(--head); font-weight: 800; font-size: 12vw; color: var(--bad); border: 1vw solid var(--bad); border-radius: 2vw; padding: 0 3vw; transform: rotate(-12deg); background: rgba(255, 255, 255, .85); animation: stampIn .35s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes stampIn { from { transform: rotate(-12deg) scale(3); opacity: 0; } to { transform: rotate(-12deg) scale(1); opacity: 1; } }
+#app.shake { animation: shakeX .8s ease-in-out; }
+@keyframes shakeX { 0%, 100% { transform: none; } 10%, 50%, 90% { transform: translateX(-2.2vw); } 30%, 70% { transform: translateX(2.2vw); } }
+
+.startbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 2px solid var(--pink-l); }
+.startbar .grow { flex: 1; min-width: 220px; }
+.who > span.firstpick { background: var(--pink); color: #fff; border-color: var(--pink); }
+.who > span small { font-weight: 800; color: var(--muted); min-width: 14px; text-align: center; }
+.who > span .lucide { width: 14px; height: 14px; }
+.rjcode { font-size: 56px; font-weight: 800; letter-spacing: 10px; color: var(--pink); text-align: center; margin: 4px 0 10px; }
+.qrbox { display: grid; place-items: center; margin: 0 auto 18px; }
+.qrbox img, .qrbox canvas { border-radius: 10px; }
+/* ტელეფონზე ყველა ტექსტი მინიმუმ 16px */
+.phone label.f { font-size: 16px; }
+.phone .join-hint { font-size: 16px; }
+.phone .top .nm small, .phone .top .nm small .ttag { font-size: 16px; }
+.phone .top .sc small { font-size: 16px; font-weight: 700; }
+.phone .dot { font-size: 16px; }
+.phone .hint { font-size: 16px; }

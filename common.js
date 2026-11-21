@@ -67,7 +67,7 @@ const DEFAULT_TEXTS = {
   wrong: ['ეჰ, არა. მაგრამ თავდაჯერებულად უპასუხე!', 'არასწორია, მაგრამ ლამაზად ცდები.', 'ოხ... გუგლი ახლა ვერ გიშველის.', 'არა-არა-არა! მაგრამ ამას არავინ დაიმახსოვრებს. ალბათ.', 'ამჯერად არა! მომდევნოში გაგიმართლებს.'],
   board_title: ['ვინ დგას სათავეში?', 'ქულების ცხრილი: გული დაიჭირეთ!', 'ცხრილი არ იტყუება!', 'ვინ ჭკვიანობს და ვინ მხოლოდ ჩანს?'],
   podium_title: ['ჩემპიონების პოდიუმი!', 'ვინ ავიდა მწვერვალზე?', 'და გამარჯვებულები არიან...', 'დრამის ბგერა, თუ შეიძლება!'],
-  loser: ['{name}, ბოლო ადგილი შენია! შენ ჩვენი საღამოს უდიდესი ფუცი ხარ. გვიყვარხარ!', 'ბოლო ადგილი: {name}! ნელა წასვლა შორს მიდის... ალბათ.', 'და ფუცობის ჩემპიონი ხდება {name}! სიყვარულით და აპლოდისმენტებით!', '{name}, არა უშავს! ბოლო ადგილი ყველაზე თბილია, იქ მარტო არავინ ზის.', '{name} დღეს ფუცობდა, ჩვენ კი ვტაშობდით! გვიყვარხარ.']
+  loser: ['{name}, ყველაზე ნაკლები ქულა შენ მოაგროვე — სამაგიეროდ ყველაზე მეტი გული ჩადე!', '{name}-ს დღეს ქულები სადღაც დაეკარგა. შემდეგ ფაციფუცობანაზე აუცილებლად იპოვი!', 'ყველაზე ცოტა ქულა — {name}! მაგრამ ჩვენთვის მაინც ოქრო ხარ.', '{name}, ქულების დიეტაზე იყავი დღეს? ძალიან კარგად დაიცავი!', '{name} ცხრილის ბოლოშია, მაგრამ ჩვენს გულში — პირველ ადგილზე.']
 };
 
 // ───────── კონფიგურაცია (ადმინში იცვლება) ─────────
@@ -98,7 +98,7 @@ function scoreMap(awarded) {
   for (const q in (awarded || {})) for (const p in awarded[q]) { const v = awarded[q][p]; m[p] = Math.round(((m[p] || 0) + (v === true ? 1 : Number(v) || 0)) * 100) / 100; }
   return m;
 }
-const fmtPts = n => { n = Number(n) || 0; return Number.isInteger(n) ? String(n) : n.toFixed(1); };
+const fmtPts = n => String(Math.round((Number(n) || 0) * 100) / 100); // მაქს. 2 ათწილადი, ბოლო ნულების გარეშე: 1.5, 2.67, 3
 // მხოლოდ ნამდვილი მოთამაშეები (სახელით)
 function cleanPlayers(v) { const o = {}; for (const k in (v || {})) if (v[k] && v[k].name) o[k] = v[k]; return o; }
 const isOnline = p => !!(p && p.conns && Object.keys(p.conns).length);
@@ -111,12 +111,12 @@ function ranking(players, awarded) {
 
 // ───────── წესები (ადმინში იცვლება; კითხვას შეუძლია საკუთარი) ─────────
 const DEFAULT_RULES = {
-  1: { award: 'all', awardN: 3, pts: 1, penalty: 0, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4 },
-  2: { award: 'all', awardN: 3, pts: 1, penalty: 0, multi: 'exact', typed: 'manual', board: true }
+  1: { pts: 1, penalty: 0, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4 },
+  2: { ptsFirst: 1.5, ptsOther: 1, onlyFirst: false, penalty: 0, multi: 'partial', typed: 'manual', board: true }
 };
 const RULE_OPTS = {
-  award: [['all', 'ყველა, ვინც სწორად უპასუხა'], ['first', 'მხოლოდ პირველი სწორი'], ['firstN', 'მხოლოდ პირველი N სწორი']],
-  multi: [['exact', 'ქულა მხოლოდ ზუსტად სწორზე'], ['partial', 'ნაწილობრივი ქულა თითო სწორ არჩევანზე']],
+  onlyFirst: [[false, 'ყველა სწორი იღებს ქულას'], [true, 'ქულას იღებს მხოლოდ პირველი სწორი']],
+  multi: [['partial', 'ნაწილობრივი ქულა: (სწორი − არასწორი) ÷ სწორების რაოდენობა'], ['exact', 'ქულა მხოლოდ ზუსტად სწორზე']],
   typed: [['manual', 'წამყვანი თვითონ ნიშნავს'], ['auto', 'ავტომატური შედარება (გამოტოვებების და ასოების ზომის გარეშე)']],
   afterWrong: [['others', 'ღილაკი იხსნება სხვა გუნდებისთვის'], ['all', 'ღილაკი იხსნება ყველასთვის, იგივე გუნდისთვისაც'], ['next', 'გადავდივართ შემდეგ კითხვაზე']],
   board: [[true, 'ჩართული'], [false, 'გამორთული']],
@@ -132,14 +132,16 @@ function teamsOn() { return rulesG(1).teamsOn !== false; }
 function finalSteps() { const f = finalRules(), n = Math.max(1, Math.min(3, Number(f.places) || 3)), st = []; for (let i = n - 1; i >= 0; i--) st.push('p' + i); if (f.loser !== false) st.push('loser'); return st; }
 // მოკლე აღწერა წამყვანისთვის
 function rulesText(r, q) {
-  const t = [`სწორზე +${fmtPts(r.pts)}`];
-  if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
+  const t = [];
   if (q && q.game === 1) {
+    t.push(`სწორზე +${fmtPts(r.pts)}`);
+    if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
     t.push(r.afterWrong === 'next' ? 'შეცდომის შემდეგ — შემდეგი კითხვა' : r.afterWrong === 'all' ? (r.sameTeamTwice ? 'შეცდომის შემდეგ ყველას შეუძლია' : 'შეცდომის შემდეგ ყველას, ოღონდ ჯერ სხვამ') : 'შეცდომის შემდეგ — სხვა გუნდები');
     if (!r.teamsOn) t.push('ყველა თავისთვის');
   } else {
-    t.push(r.award === 'first' ? 'ქულა მხოლოდ პირველ სწორს' : r.award === 'firstN' ? `ქულა პირველ ${r.awardN} სწორს` : 'ქულა ყველა სწორს');
-    if (q && q.type === 'multi') t.push(r.multi === 'partial' ? 'ნაწილობრივი ქულა' : 'მხოლოდ ზუსტად სწორი');
+    t.push(r.onlyFirst ? `ქულა მხოლოდ პირველ სწორს: +${fmtPts(r.ptsFirst)}` : `პირველი სწორი +${fmtPts(r.ptsFirst)}, დანარჩენი სწორი +${fmtPts(r.ptsOther)}`);
+    if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
+    if (q && q.type === 'multi') t.push(r.multi === 'exact' ? 'მხოლოდ ზუსტად სწორი' : 'ნაწილობრივი ქულა');
     if (q && q.type === 'text') t.push(r.typed === 'auto' ? 'ავტომატური შემოწმება' : 'წამყვანი ნიშნავს');
     if (r.board === false) t.push('ქულების ცხრილის გარეშე');
   }
@@ -156,25 +158,46 @@ const buzzKeyOf = (l, p, pid) => ((l && l.q && l.q.rules && l.q.rules.teamsOn ==
 // ჩაწერითი პასუხის ავტომატური შედარება (რამდენიმე სწორი „/“-ით)
 const normAns = s => String(s || '').toLowerCase().replace(/[\s.,!?'"„“”-]+/g, '');
 function autoMatch(given, expected) { const g = normAns(given); return !!g && String(expected || '').split('/').some(x => normAns(x) && normAns(x) === g); }
-// კითხვის ქულები წესების მიხედვით → { aw: {pid: ქულა}, right: {pid: true} }
+// პასუხების რიგი: ბაზაში მინიჭებული ნომერი (seq), ასე ორი ტელეფონი ვერასდროს იქნება ერთად პირველი
+const ansOrder = (x, y) => ((x[1].seq || 1e9) - (y[1].seq || 1e9)) || ((x[1].t || 0) - (y[1].t || 0));
+// კითხვის ქულები წესების მიხედვით → { aw: {pid: ქულა}, right: {pid: true}, first: pid }
 function scoreQuestion(q, entries, r) {
   const aw = {}, right = {};
-  if (!q || q.type === 'poll') return { aw, right };
-  const pts = Number(r.pts) || 0, pen = Number(r.penalty) || 0, corr = arr(q.correct).map(Number);
-  const sorted = entries.slice().sort((a, b) => ((a[1].t || 0) - (b[1].t || 0)));
-  const good = [];
-  sorted.forEach(([pid, a]) => {
+  let first = null;
+  if (!q || q.type === 'poll') return { aw, right, first };
+  const pf = Number(r.ptsFirst) || 0, po = Number(r.ptsOther) || 0, pen = Number(r.penalty) || 0, corr = arr(q.correct).map(Number);
+  entries.slice().sort(ansOrder).forEach(([pid, a]) => {
     let frac = 0;
     if (q.type === 'text') frac = (a.ok === true || (a.ok === undefined && r.typed === 'auto' && autoMatch(a.a, q.answer))) ? 1 : 0;
-    else if (q.type === 'multi' && r.multi === 'partial') { const mine = arr(a.a).map(Number), hit = mine.filter(i => corr.includes(i)).length, miss = mine.length - hit; frac = corr.length ? Math.max(0, (hit - miss) / corr.length) : 0; }
+    else if (q.type === 'multi' && r.multi !== 'exact') { const mine = arr(a.a).map(Number), hit = mine.filter(i => corr.includes(i)).length, miss = mine.length - hit; frac = corr.length ? Math.max(0, (hit - miss) / corr.length) : 0; }
     else frac = isCorrectChoice(q, a.a) ? 1 : 0;
-    if (frac > 0) { right[pid] = true; good.push([pid, frac]); }
-    else if (pen) aw[pid] = -pen;
+    if (frac <= 0) { if (pen) aw[pid] = -pen; return; }
+    right[pid] = true;
+    let v;
+    if (frac >= 1 && !first) { first = pid; v = pf; }      // ბონუსი მხოლოდ პირველ სრულად სწორს
+    else v = r.onlyFirst ? 0 : po * frac;
+    v = Math.round(v * 100) / 100;
+    if (v) aw[pid] = v;
   });
-  const lim = r.award === 'first' ? 1 : r.award === 'firstN' ? Math.max(1, Number(r.awardN) || 1) : Infinity;
-  good.slice(0, lim).forEach(([pid, frac]) => { const v = Math.round(pts * frac * 100) / 100; if (v) aw[pid] = v; });
-  return { aw, right };
+  return { aw, right, first };
 }
+
+// ───────── ეკრანი არ ჩაქრეს (Screen Wake Lock + სათადარიგო ვიდეო) ─────────
+let wakeLock = null, noSleep = null;
+async function keepAwake() {
+  try {
+    if ('wakeLock' in navigator) { if (!wakeLock || wakeLock.released) wakeLock = await navigator.wakeLock.request('screen'); return; }
+  } catch (e) {}
+  try { // ძველი ტელეფონები: პატარა უხილავი ვიდეო (NoSleep)
+    if (!window.NoSleep) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+    if (!noSleep) noSleep = new NoSleep();
+    if (!noSleep.isEnabled) noSleep.enable();
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+['pointerdown', 'touchend', 'click'].forEach(ev => document.addEventListener(ev, () => keepAwake(), { passive: true }));
+keepAwake();
+
 function teamName(teams, i) { return (teams && teams[i] && teams[i].name) || ('გუნდი ' + (i + 1)); }
 function teamScore(teams, i) { return (teams && teams[i] && teams[i].score) || 0; }
 function isCorrectChoice(q, a) {
@@ -210,4 +233,18 @@ async function ensureBase() {
 function toast(msg) {
   const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; document.body.appendChild(d);
   setTimeout(() => d.remove(), 3200);
+}
+
+// ───────── რბილი გადასვლა ეკრანებს შორის (ძველი გადის, ახალი შემოდის, ~300ms) ─────────
+function swapScreen(el, html, kind) {
+  if (kind && el.firstElementChild && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const r = el.getBoundingClientRect(), g = document.createElement('div');
+    g.className = 'ghost ' + kind + '-out'; g.setAttribute('aria-hidden', 'true');
+    g.innerHTML = el.innerHTML;
+    g.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    g.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${Math.min(r.height, innerHeight - Math.max(0, r.top))}px;overflow:hidden;pointer-events:none;z-index:40;`;
+    document.body.appendChild(g); setTimeout(() => g.remove(), 340);
+  }
+  el.innerHTML = html;
+  if (kind) { el.classList.remove('slide-in', 'fade-in'); void el.offsetWidth; el.classList.add(kind + '-in'); }
 }

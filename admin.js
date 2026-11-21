@@ -1,7 +1,7 @@
 // ფაციფუცობანა — ადმინის გვერდი: ქვიზები, კითხვები, სურათები, ხმები, პარამეტრები
-const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
+const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, videos: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
 const view = $('#view');
-const MAX_SND_MB = 3, MAX_SND_SEC = 30;
+const MAX_SND_MB = 3, MAX_SND_SEC = 30, MAX_GIF_MB = 2.5, MAX_VID_MB = 4, MAX_VID_SEC = 10;
 const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
 const TYPE_NAMES = { buzz: 'ბლიც', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
 const EV_NAME = Object.fromEntries(SOUND_EVENTS);
@@ -14,7 +14,7 @@ function start() {
   if (started) return; started = true;
   setSaved(true);
   const on = (path, key) => db.ref(path).on('value', s => { M[key] = s.val() || {}; M.loaded[key] = true; onData(key); });
-  on('quizzes', 'quizzes'); on('questions', 'questions'); on('library/images', 'images'); on('library/sounds', 'sounds'); on('teams', 'teams');
+  on('quizzes', 'quizzes'); on('questions', 'questions'); on('library/images', 'images'); on('library/sounds', 'sounds'); on('library/videos', 'videos'); on('teams', 'teams');
   watchConfig(() => { $('#sideLogo').innerHTML = logoHtml(); document.title = gameName() + ' — ადმინი'; M.loaded.config = true; onData('config'); });
   icons();
 }
@@ -39,7 +39,7 @@ window.addEventListener('beforeunload', () => { [...pending.keys()].forEach(run)
 let inited = false;
 function onData() {
   const L0 = M.loaded;
-  if (!(L0.quizzes && L0.questions && L0.images && L0.sounds && L0.teams && L0.config)) return;
+  if (!(L0.quizzes && L0.questions && L0.images && L0.sounds && L0.videos && L0.teams && L0.config)) return;
   if (!inited) {
     inited = true; ensureBase();
     if (!Object.keys(M.quizzes).length) { // პირველი გაშვება: ორი ცარიელი ქვიზი
@@ -47,6 +47,7 @@ function onData() {
       db.ref().update({ ['quizzes/' + a]: { name: 'ბლიცი: პირველი ქვიზი', game: 1, created: TS }, ['quizzes/' + b]: { name: 'ფაცი თუ ფუცი: პირველი ქვიზი', game: 2, created: TS }, 'config/active/g1': a, 'config/active/g2': b });
       return;
     }
+    const hm = location.hash.match(/quiz=([^&]+)/); if (hm && M.quizzes[decodeURIComponent(hm[1])]) M.selQuiz = decodeURIComponent(hm[1]);
     render(true); return;
   }
   if (M.selQuiz && !M.quizzes[M.selQuiz]) { M.selQuiz = null; closeEditor(); }
@@ -119,7 +120,7 @@ function drawQList() {
   const qs = qOf(M.selQuiz);
   [...M.sel].forEach(id => { if (!qs.some(q => q.id === id)) M.sel.delete(id); });
   setHTML($('#ql-bulk'), M.sel.size ? `<span class="chip">მონიშნულია: <b>${M.sel.size}</b></span><button class="btn" data-a="movesel">${L('arrow-right-left')}გადატანა…</button><button class="btn quiet" data-a="selclear">მოხსნა</button>` : '');
-  setHTML(el, qs.map((x, i) => `<div class="qr ${x.id === M.selQ ? 'on' : ''}" draggable="true" data-a="editq" data-id="${x.id}"><input type="checkbox" class="qsel" data-id="${x.id}" ${M.sel.has(x.id) ? 'checked' : ''} aria-label="მონიშვნა"><span class="grip" data-tip="გადაათრიე">${L('grip-vertical')}</span><span class="qn">${i + 1}</span><div class="qmain"><b>${esc(x.text || '(ცარიელი კითხვა)')}</b>${qComplete(x) ? '' : `<small class="warn">არასრულია</small>`}</div><span class="qic">${x.img ? `<span data-tip="სურათი">${L('image')}</span>` : ''}${x.snd ? `<span data-tip="კლიპი">${L('music')}</span>` : ''}${hasSfx(x) ? `<span data-tip="საკუთარი ხმები">${L('volume-2')}</span>` : ''}${hasRules(x) ? `<span data-tip="საკუთარი წესები">${L('scale')}</span>` : ''}</span><span class="tag t-${x.type}">${TYPE_NAMES[x.type] || ''}</span><button class="btn quiet icon" data-a="more" data-id="${x.id}" data-tip="მეტი" aria-label="მეტი">${L('ellipsis')}</button></div>`).join('') || '<div class="empty">ამ ქვიზში კითხვები ჯერ არ არის.</div>');
+  setHTML(el, qs.map((x, i) => `<div class="qr ${x.id === M.selQ ? 'on' : ''}" draggable="true" data-a="editq" data-id="${x.id}"><input type="checkbox" class="qsel" data-id="${x.id}" ${M.sel.has(x.id) ? 'checked' : ''} aria-label="მონიშვნა"><span class="grip" data-tip="გადაათრიე">${L('grip-vertical')}</span><span class="qn">${i + 1}</span><div class="qmain"><b>${esc(x.text || '(ცარიელი კითხვა)')}</b>${qComplete(x) ? '' : `<small class="warn">არასრულია</small>`}</div><span class="qic">${x.img ? `<span data-tip="სურათი">${L('image')}</span>` : ''}${x.snd ? `<span data-tip="კლიპი">${L('music')}</span>` : ''}${hasSfx(x) ? `<span data-tip="საკუთარი ხმები">${L('volume-2')}</span>` : ''}${hasRules(x) ? `<span data-tip="საკუთარი წესები">${L('scale')}</span>` : ''}${x.wrongFx ? `<span data-tip="შეცდომის ეფექტი">${L(x.wrongFx.type === 'video' ? 'film' : 'sparkles')}</span>` : ''}</span><span class="tag t-${x.type}">${TYPE_NAMES[x.type] || ''}</span><button class="btn quiet icon" data-a="more" data-id="${x.id}" data-tip="მეტი" aria-label="მეტი">${L('ellipsis')}</button></div>`).join('') || '<div class="empty">ამ ქვიზში კითხვები ჯერ არ არის.</div>');
 }
 
 // ── რედაქტორი (მარჯვენა პანელი) ──
@@ -152,6 +153,7 @@ function drawEditor() {
   const sf = c.sfx || {};
   h += `<div class="sect"><h4>${L('volume-2')}ხმები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „ნაგულისხმევი“ — თამაშის საერთო ხმა (ხმები → თამაშის ხმები).</p>` +
     Q_EVENTS[c.game].map(ev => `<div class="evline"><b>${EV_NAME[ev]}</b><select data-qev="${ev}">${sndOptions(sf[ev], `<option value="">ნაგულისხმევი (${esc(sndName((CFG.sounds || {})[ev]))})</option>`)}</select><button class="btn icon" data-a="qevplay" data-id="${ev}" data-tip="მოსმენა">${L('play')}</button><label class="btn icon" data-tip="ახლის ატვირთვა">${L('upload')}<input type="file" data-qevup="${ev}" accept="audio/*" hidden></label></div>`).join('') + '</div>';
+  h += wrongSect(c);
   h += rulesSect(c);
   h += `<div class="sect"><h4>${L('monitor')}ასე გამოჩნდება ტვ-ზე</h4><div class="tvwrap"><div class="tvframe tv" id="tvprev"></div></div><p class="saved" id="e_status">${L('circle-check-big')}შენახულია</p></div>`;
   setHTML(body, h);
@@ -160,18 +162,16 @@ function drawEditor() {
 // კითხვის საკუთარი წესები („თამაშის წესი“ = არაფერი არ ინახება)
 function qRuleKeys(c) {
   if (c.game === 1) return ['pts', 'penalty', 'afterWrong'].concat((c.rules || {}).afterWrong === 'all' || (rulesG(1).afterWrong === 'all' && !(c.rules || {}).afterWrong) ? ['sameTeamTwice'] : []);
-  const k = ['award'];
-  if (((c.rules || {}).award || rulesG(2).award) === 'firstN') k.push('awardN');
-  k.push('pts', 'penalty');
+  const k = ['ptsFirst', 'ptsOther', 'onlyFirst', 'penalty'];
   if (c.type === 'multi') k.push('multi');
   if (c.type === 'text') k.push('typed');
   k.push('board');
   return k;
 }
-const RULE_NAMES = { award: 'ვინ იღებს ქულას', awardN: 'რამდენი პირველი სწორი', pts: 'ქულა სწორ პასუხზე', penalty: 'ქულის დაკლება შეცდომაზე', multi: 'რამდენიმე სწორი პასუხი', typed: 'ჩაწერითი პასუხის შემოწმება', board: 'ქულების ცხრილი კითხვის შემდეგ', afterWrong: 'არასწორი პასუხის შემდეგ', sameTeamTwice: 'იგივე გუნდს ისევ შეუძლია დაჭერა' };
-const NUM_RULES = ['pts', 'penalty', 'awardN'];
+const RULE_NAMES = { ptsFirst: 'ქულა პირველ სწორ პასუხზე', ptsOther: 'ქულა დანარჩენ სწორ პასუხებზე', onlyFirst: 'ვინ იღებს ქულას', pts: 'ქულა სწორ პასუხზე', penalty: 'ქულის დაკლება შეცდომაზე', multi: 'რამდენიმე სწორი პასუხი', typed: 'ჩაწერითი პასუხის შემოწმება', board: 'ქულების ცხრილი კითხვის შემდეგ', afterWrong: 'არასწორი პასუხის შემდეგ', sameTeamTwice: 'იგივე გუნდს ისევ შეუძლია დაჭერა' };
+const NUM_RULES = ['pts', 'penalty', 'ptsFirst', 'ptsOther'];
 function ruleControl(key, val, def, attr) {
-  if (NUM_RULES.includes(key)) return `<input type="number" ${attr} step="${key === 'awardN' ? 1 : 0.5}" min="0" value="${val === undefined ? '' : esc(val)}" placeholder="${def === undefined ? '' : 'თამაშის წესი: ' + esc(def)}">`;
+  if (NUM_RULES.includes(key)) return `<input type="number" ${attr} step="0.5" min="0" value="${val === undefined ? '' : esc(val)}" placeholder="${def === undefined ? '' : 'თამაშის წესი: ' + esc(def)}">`;
   const opts = RULE_OPTS[key] || [];
   return `<select ${attr}>${def !== undefined ? `<option value="" ${val === undefined ? 'selected' : ''}>თამაშის წესი: ${esc(optLabel(key, def))}</option>` : ''}${opts.map(([v, l]) => `<option value="${v}" ${val !== undefined && String(val) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 }
@@ -180,8 +180,31 @@ function rulesSect(c) {
   return `<div class="sect"><h4>${L('scale')}წესები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „თამაშის წესი“ (წესები → ${c.game === 1 ? 'თამაში 1' : 'თამაში 2'}).</p>` +
     qRuleKeys(c).map(k => `<div class="evline" style="grid-template-columns:190px minmax(0,1fr)"><b>${RULE_NAMES[k]}</b>${ruleControl(k, own[k], g[k], `data-qrule="${k}"`)}</div>`).join('') + '</div>';
 }
+// „როცა ვინმე შეცდება“: სურათი/GIF, მოკლე ვიდეო ან ჩაშენებული ეფექტი (ტვ-ზე გამოაშკარავებისას)
+const FX_NAMES = { shake: 'ეკრანის რყევა', tomatoes: 'ცვივა პომიდვრები', stamp: 'დიდი წითელი შტამპი „შეცდომა!“' };
+function wrongSect(c) {
+  const fx = c.wrongFx || null, t = fx ? fx.type : '';
+  let body = '';
+  if (t === 'img') { const im = M.images[fx.id]; body = `<div class="row">${im ? `<img class="thumb" src="${im.thumb}" alt="">` : '<span class="hint">სურათი არ არის არჩეული</span>'}<span class="grow"></span><button class="btn" data-a="pickfximg">${L('images')}ბიბლიოთეკიდან</button><label class="btn">${L('upload')}სურათი / GIF<input type="file" id="e_fx_img" accept="image/*" hidden></label></div><p class="hint">GIF რჩება მოძრავი (მაქს. ${MAX_GIF_MB} მბ).</p>`; }
+  else if (t === 'video') body = `<div class="row"><select id="e_fx_vid" class="grow"><option value="">აირჩიე ვიდეო</option>${Object.entries(M.videos).map(([id, v]) => `<option value="${id}" ${fx.id === id ? 'selected' : ''}>${esc(v.name)} (${Math.round(v.dur || 0)} წმ)</option>`).join('')}</select><label class="btn">${L('upload')}ვიდეოს ატვირთვა<input type="file" id="e_fx_vup" accept="video/*" hidden></label></div><p class="hint">მაქსიმუმ ${MAX_VID_SEC} წამი და ${MAX_VID_MB} მბ (MP4 საუკეთესოა).</p>`;
+  else if (t === 'effect') body = `<select id="e_fx_eff">${Object.entries(FX_NAMES).map(([k, v]) => `<option value="${k}" ${fx.name === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+  return `<div class="sect"><h4>${L('sparkles')}როცა ვინმე შეცდება · ტვ-ზე, გამოაშკარავებისას</h4><select id="e_fx_type" style="margin-bottom:10px"><option value="" ${!t ? 'selected' : ''}>არაფერი</option><option value="img" ${t === 'img' ? 'selected' : ''}>სურათი ან GIF</option><option value="video" ${t === 'video' ? 'selected' : ''}>მოკლე ვიდეო</option><option value="effect" ${t === 'effect' ? 'selected' : ''}>ჩაშენებული ეფექტი</option></select>${body}<p class="hint">ჩაირთვება მხოლოდ მაშინ, თუ ერთმა მაინც არასწორად უპასუხა.</p></div>`;
+}
+function setFx(fx) { M.cur.wrongFx = fx; scheduleQSave(); drawEditor(); drawQListSoon(); }
+async function addVideo(file) {
+  const mb = file.size / 1048576;
+  if (mb > MAX_VID_MB) { note(`ვიდეო ძალიან დიდია (${mb.toFixed(1)} მბ). მაქსიმუმი ${MAX_VID_MB} მბ-ია. გაჭერი უფრო მოკლედ ან დაბალი ხარისხით.`); return null; }
+  const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+  const dur = await new Promise(res => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => res(v.duration); v.onerror = () => res(-1); v.src = data; });
+  if (!(dur > 0)) { note('ამ ვიდეოს ვერ ვკითხულობ. სცადე MP4.'); return null; }
+  if (dur > MAX_VID_SEC + .5) { note(`ვიდეო ${Math.round(dur)} წამია. მაქსიმუმი ${MAX_VID_SEC} წამია. გაჭერი უფრო მოკლედ.`); return null; }
+  const id = db.ref('library/videos').push().key;
+  await db.ref('libdata/vid/' + id).set(data);
+  await db.ref('library/videos/' + id).set({ name: baseName(file), dur, size: file.size, created: TS });
+  return id;
+}
 function setRule(k, raw) {
-  const r = M.cur.rules = Object.assign({}, M.cur.rules || {});
+  const r = M.cur.rules = Object.assign({}, M.cur.rules || {}); M.cur.wrongFx = M.cur.wrongFx || null;
   if (raw === '' || raw === undefined) delete r[k];
   else r[k] = NUM_RULES.includes(k) ? Number(raw) : raw === 'true' ? true : raw === 'false' ? false : raw;
   scheduleQSave();
@@ -205,7 +228,7 @@ function collect() {
   scheduleQSave(); drawPreview();
 }
 function qDoc(c) {
-  const d = { quiz: c.quiz, game: c.game, order: c.order, type: c.type, text: c.text || '', answer: c.answer || '', img: c.img || null, snd: c.snd || null, sfx: c.sfx && Object.keys(c.sfx).length ? c.sfx : null, rules: c.rules && Object.keys(c.rules).length ? c.rules : null };
+  const d = { quiz: c.quiz, game: c.game, order: c.order, type: c.type, text: c.text || '', answer: c.answer || '', img: c.img || null, snd: c.snd || null, sfx: c.sfx && Object.keys(c.sfx).length ? c.sfx : null, rules: c.rules && Object.keys(c.rules).length ? c.rules : null, wrongFx: c.wrongFx || null };
   if (c.type !== 'text' && c.type !== 'buzz') { d.options = arr(c.options); const k = arr(c.correct).map(Number); if (k.length && c.type !== 'poll') d.correct = k; }
   return d;
 }
@@ -252,6 +275,7 @@ function doMove(qzid) {
     else { d.type = q.type; d.options = opts.length ? opts : null; d.correct = corr.length ? corr : null; }
     if (q.sfx && tz.game === q.game) d.sfx = q.sfx; // საკუთარი ხმები რჩება, თუ თამაში იგივეა
     d.rules = q.rules && tz.game === q.game ? q.rules : null;
+    d.wrongFx = q.wrongFx || null;
     Object.entries(d).forEach(([k, v]) => { u['questions/' + id + '/' + k] = v; });
     if (M.selQ === id) { pending.delete('q:' + id); closeEditor(); }
     M.sel.delete(id);
@@ -321,8 +345,9 @@ const ACT = {
   movesel() { M.moveIds = qOf(M.selQuiz).map(q => q.id).filter(id => M.sel.has(id)); if (M.moveIds.length) moveModal(); },
   selclear() { M.sel.clear(); drawQList(); },
   moveto(qzid) { doMove(qzid); },
-  pickimg() { pickImgModal(); },
-  useimg(id) { closeModal(); setField('img', id); },
+  pickimg() { M.pickFor = null; pickImgModal(); },
+  useimg(id) { closeModal(); if (M.pickFor === 'fx') { M.pickFor = null; setFx({ type: 'img', id }); } else setField('img', id); },
+  pickfximg() { M.pickFor = 'fx'; pickImgModal(); },
   rmimg() { setField('img', null); },
   playsnd(id) { togglePlay(id); },
   qevplay(ev) { const v = (M.cur.sfx || {})[ev]; SFX.preview(v || (CFG.sounds || {})[ev] || 'default', ev); },
@@ -331,7 +356,7 @@ const ACT = {
     const used = Object.values(M.questions).filter(q => q.img === id).length;
     if (!(await ask(used ? `ეს სურათი გამოიყენება ${used} კითხვაში. წაშლის შემდეგ ამ კითხვებიდან მოიხსნება.` : 'ეს სურათი წაიშლება.'))) return;
     const u = { ['library/images/' + id]: null, ['libdata/img/' + id]: null };
-    Object.entries(M.questions).forEach(([qid, q]) => { if (q.img === id) u['questions/' + qid + '/img'] = null; });
+    Object.entries(M.questions).forEach(([qid, q]) => { if (q.img === id) u['questions/' + qid + '/img'] = null; if (q.wrongFx && q.wrongFx.id === id) u['questions/' + qid + '/wrongFx'] = null; });
     if (M.cur && M.cur.img === id) M.cur.img = null;
     db.ref().update(u);
   },
@@ -384,7 +409,11 @@ async function imgToJpegs(file) {
 const baseName = f => f.name.replace(/\.[^.]+$/, '').slice(0, 40) || 'ფაილი';
 async function addImage(file, replaceId) {
   try {
-    const { full, thumb } = await imgToJpegs(file);
+    let { full, thumb } = await imgToJpegs(file);
+    if (file.type === 'image/gif') { // GIF რჩება მოძრავი
+      if (file.size / 1048576 > MAX_GIF_MB) { note(`GIF ძალიან დიდია (${(file.size / 1048576).toFixed(1)} მბ). მაქსიმუმი ${MAX_GIF_MB} მბ-ია.`); return null; }
+      full = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    }
     const id = replaceId || db.ref('library/images').push().key;
     await db.ref('libdata/img/' + id).set(full);
     if (replaceId) await db.ref('library/images/' + id + '/thumb').set(thumb);
@@ -422,9 +451,9 @@ function renderRules() {
   const sel = (path, cur, opts) => `<select data-rule="${path}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   setHTML(view, `<div class="cols"><div>
   <div class="panel"><h3>${L('circle-help')}თამაში 2 · ფაცი თუ ფუცი</h3>
-    ${line(RULE_NAMES.award, c('g2', 'award', g2.award))}
-    ${g2.award === 'firstN' ? line(RULE_NAMES.awardN, c('g2', 'awardN', g2.awardN)) : ''}
-    ${line(RULE_NAMES.pts, c('g2', 'pts', g2.pts), 'ნაგულისხმევად 1. კონკრეტულ კითხვას შეგიძლია მეტი ქულა მისცე კითხვის რედაქტორში.')}
+    ${line(RULE_NAMES.ptsFirst, c('g2', 'ptsFirst', g2.ptsFirst), 'ვინც პირველი უპასუხებს სრულად სწორად. ნაგულისხმევად 1.5. რიგს ბაზა წყვეტს.')}
+    ${line(RULE_NAMES.ptsOther, c('g2', 'ptsOther', g2.ptsOther), 'ნაგულისხმევად 1. კონკრეტულ კითხვას შეგიძლია სხვა ქულა მისცე კითხვის რედაქტორში.')}
+    ${line(RULE_NAMES.onlyFirst, c('g2', 'onlyFirst', g2.onlyFirst))}
     ${line(RULE_NAMES.penalty, c('g2', 'penalty', g2.penalty), '0 = არაფერი აკლდება.')}
     ${line(RULE_NAMES.multi, c('g2', 'multi', g2.multi))}
     ${line(RULE_NAMES.typed, c('g2', 'typed', g2.typed), 'ავტომატურისას წამყვანს მაინც შეუძლია შეასწოროს. რამდენიმე სწორი პასუხი გამოყავი „/“-ით.')}
@@ -446,14 +475,14 @@ function renderRules() {
 }
 function saveRule(path, raw) {
   const [g, k] = path.split('.');
-  const v = ['pts', 'penalty', 'awardN', 'places', 'teamCount'].includes(k) ? Math.max(0, Number(raw) || 0) : raw === 'true' ? true : raw === 'false' ? false : raw;
+  const v = ['pts', 'penalty', 'ptsFirst', 'ptsOther', 'places', 'teamCount'].includes(k) ? Math.max(0, Number(raw) || 0) : raw === 'true' ? true : raw === 'false' ? false : raw;
   return db.ref('config/rules/' + g + '/' + k).set(v);
 }
 
 // ═════════ სურათები ═════════
 function renderImages() {
   const l = Object.entries(M.images).sort((a, b) => (b[1].created || 0) - (a[1].created || 0));
-  setHTML(view, `<div class="panel"><h3>${L('upload')}ატვირთვა</h3><div class="drop"><p class="hint">სურათი ავტომატურად მცირდება (მაქს. 1280 პიქსელი). ერთი სურათი შეგიძლია რამდენიმე კითხვაში გამოიყენო.</p><label class="btn primary">${L('upload')}აირჩიე ფაილები<input type="file" id="lib_img_up" accept="image/*" multiple hidden></label></div></div>
+  setHTML(view, `<div class="panel"><h3>${L('upload')}ატვირთვა</h3><div class="drop"><p class="hint">სურათი ავტომატურად მცირდება (მაქს. 1280 პიქსელი). GIF რჩება მოძრავი (მაქს. ${MAX_GIF_MB} მბ). ერთი სურათი შეგიძლია რამდენიმე კითხვაში გამოიყენო.</p><label class="btn primary">${L('upload')}აირჩიე ფაილები<input type="file" id="lib_img_up" accept="image/*" multiple hidden></label></div></div>
   <div class="panel"><h3>${L('images')}ბიბლიოთეკა (${l.length})</h3>${l.length ? `<div class="libgrid">${l.map(([id, im]) => `<div class="libitem"><img src="${im.thumb}" alt=""><input type="text" data-imgname="${id}" value="${esc(im.name)}" maxlength="40" aria-label="სახელი"><span class="hint" style="margin:0">გამოიყენება ${Object.values(M.questions).filter(q => q.img === id).length} კითხვაში</span><div class="row"><label class="btn grow">${L('refresh-cw')}ჩანაცვლება<input type="file" data-replimg="${id}" accept="image/*" hidden></label><button class="btn quiet icon danger" data-a="delimg" data-id="${id}" data-tip="წაშლა">${L('trash-2')}</button></div></div>`).join('')}</div>` : '<p class="hint">ჯერ სურათები არ არის.</p>'}</div>`);
 }
 
@@ -511,6 +540,11 @@ document.addEventListener('change', async e => {
   if (t.id === 'e_type') { collect(); const c = M.cur; c.type = t.value; const n = t.value === 'poll' ? 2 : (t.value === 'text' ? 0 : 4); const o = arr(c.options).slice(0, n); while (o.length < n) o.push(''); c.options = o; c.correct = []; scheduleQSave(); drawEditor(); drawQListSoon(); }
   else if (t.id === 'e_snd') { setField('snd', t.value); drawQListSoon(); }
   else if (t.dataset.qev) setSfx(t.dataset.qev, t.value);
+  else if (t.id === 'e_fx_type') setFx(t.value === 'effect' ? { type: 'effect', name: 'tomatoes' } : t.value ? { type: t.value, id: null } : null);
+  else if (t.id === 'e_fx_eff') setFx({ type: 'effect', name: t.value });
+  else if (t.id === 'e_fx_vid') setFx({ type: 'video', id: t.value || null });
+  else if (t.id === 'e_fx_img' && t.files[0]) { const id = await addImage(t.files[0]); if (id) setFx({ type: 'img', id }); }
+  else if (t.id === 'e_fx_vup' && t.files[0]) { const id = await addVideo(t.files[0]); if (id) setFx({ type: 'video', id }); }
   else if (t.dataset.qrule) { setRule(t.dataset.qrule, t.value); if (t.tagName === 'SELECT') { drawEditor(); drawQListSoon(); } }
   else if (t.dataset.rule) { queueSave('r:' + t.dataset.rule, () => saveRule(t.dataset.rule, t.value).then(() => { if (t.tagName === 'SELECT') render(true); }), 0); }
   else if (t.classList && t.classList.contains('e_cor')) collect();

@@ -9,12 +9,33 @@ const S = {
   session: null, live: null, players: {}, teams: {}, awarded: {},
   myAns: undefined, myAnsRef: null, curQ: null,
   pid: store.get('pz_pid'),
-  form: { code: new URLSearchParams(location.search).get('code') || '', name: '', avatar: null, err: '' },
+  form: { code: new URLSearchParams(location.search).get('code') || '', name: '', avatar: null, err: '', rcode: new URLSearchParams(location.search).get('r') || '', byCode: !!new URLSearchParams(location.search).get('r') },
   sel: [], typed: '', busy: false
 };
 const app = $('#app');
 watchConnection(ok => $('#conn').classList.toggle('hidden', ok));
-watchConfig(() => { S.ready.config = true; document.title = gameName(); render(); });
+watchConfig(() => { S.ready.config = true; document.title = gameName(); if (SFX.ctx) SFX.preload(CFG.sounds); render(); });
+
+// ───────── ხმა ტელეფონზე ─────────
+// პირველივე დაჭერა (შესვლა, ღილაკი, პასუხი) ხსნის ხმას; თუ ვერ ჩაირთო — პატარა ღილაკი „ხმის ჩართვა“
+function unlockSound() {
+  try { SFX.enable(); SFX.tone(440, 0, .03, 'sine', .001); SFX.preload(CFG.sounds); if (S.live && S.live.q) SFX.preload(S.live.q.sfx); } catch (e) {}
+  setTimeout(updateSndBtn, 300);
+}
+function updateSndBtn() {
+  const b = $('#sndBtn'); if (!b) return;
+  b.hidden = !(S.pid && S.players[S.pid] && !(SFX.ctx && SFX.ctx.state === 'running'));
+}
+let lastPh = null; // { qid, phase } — მხოლოდ ახალ გამოაშკარავებაზე ვუკრავთ
+function onLiveForSound(l) {
+  const prev = lastPh; lastPh = { qid: l.qid, phase: l.phase, mode: l.mode };
+  if (SFX.ctx && l.q && l.q.sfx) SFX.preload(l.q.sfx);
+  if (!prev || l.mode !== 'g2' || l.qid !== prev.qid || prev.phase === 'revealed' || l.phase !== 'revealed') return;
+  if (!S.pid || !l.q || l.q.type === 'poll') return;
+  const right = !!(l.reveal && l.reveal.right && l.reveal.right[S.pid]);
+  SFX.play(right ? 'right' : 'wrong', l.q.sfx || null);
+  if (navigator.vibrate) navigator.vibrate(right ? [90] : [60, 60, 60]);
+}
 
 function forget() { store.del('pz_pid'); store.del('pz_code'); S.pid = null; }
 
@@ -33,6 +54,7 @@ db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {}; S.ready.live = true;
+  onLiveForSound(l);
   if (l.qid !== S.curQ) {
     S.curQ = l.qid || null; S.sel = []; S.typed = ''; S.myAns = undefined;
     if (S.myAnsRef) S.myAnsRef.off();
@@ -79,7 +101,17 @@ async function join() {
     store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
     S.pid = pid; if (S.curQ) bindAns();
   } catch (e) { f.err = 'ვერ შევედით, სცადე თავიდან'; }
-  S.busy = false; presence(); render();
+  S.busy = false; presence(); render(); updateSndBtn();
+}
+// წამყვანის მიცემული 4-ციფრიანი კოდით დაბრუნება
+async function rejoinByCode() {
+  const f = S.form, code = String(f.rcode || '').trim();
+  if (!S.session || String(f.code).trim() !== String(S.session.code)) { f.err = 'თამაშის კოდი არასწორია'; return render(); }
+  if (!/^\d{4}$/.test(code)) { f.err = 'ჩაწერე წამყვანისგან მიღებული 4-ციფრიანი კოდი'; return render(); }
+  const pid = (await db.ref('rejoin/' + code).once('value')).val();
+  if (!pid || !S.players[pid]) { f.err = 'ეს კოდი არ მუშაობს. სთხოვე წამყვანს ახალი.'; return render(); }
+  store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
+  S.pid = pid; f.err = ''; f.byCode = false; if (S.curQ) bindAns(); presence(); render(); updateSndBtn();
 }
 function rejoin(yes) {
   const f = S.form, pid = f.match; f.match = null;
@@ -106,19 +138,24 @@ function buzz() {
 }
 
 // ───────── თამაში 2: პასუხი ─────────
-function sendAns(a) {
+// პასუხს ბაზა ანიჭებს რიგით ნომერს (seq) — ასე ორი ტელეფონი ვერ იქნება ერთად პირველი
+async function sendAns(a) {
   if (!S.curQ || S.myAns || !S.live || S.live.phase !== 'answering') return;
+  const qid = S.curQ;
   S.myAns = { a, t: 0 }; render();
-  db.ref('answers/' + S.curQ + '/' + S.pid).set({ a, t: TS }).catch(() => { S.myAns = null; render(); });
+  const ref = db.ref('answers/' + qid + '/' + S.pid);
+  try { await ref.set({ a, t: TS }); } catch (e) { S.myAns = null; render(); return; }  // პასუხი მაშინვე ჩანს წამყვანთან
+  try { const r = await db.ref('seq/' + qid).transaction(n => (n || 0) + 1); if (r.committed) await ref.child('seq').set(r.snapshot.val()); } catch (e) {}
 }
 
 // ───────── გამოსახვა ─────────
-let lastHtml = '';
-function view(html) {
+let lastHtml = '', lastKey = '';
+function view(html, key) {
   if (html === lastHtml) return;
   const ae = document.activeElement;
   const id = ae && ae.id, ss = ae && ae.selectionStart;
-  app.innerHTML = html; lastHtml = html;
+  const kind = key && lastKey && key !== lastKey ? (key.split('|')[0] !== lastKey.split('|')[0] || key.split('|')[1] !== lastKey.split('|')[1] ? 'slide' : 'fade') : null;
+  swapScreen(app, html, kind); lastHtml = html; if (key) lastKey = key;
   if (id) { const n = document.getElementById(id); if (n) { n.focus(); try { n.setSelectionRange(ss, ss); } catch (e) {} } }
 }
 function msg(avatar, text, small) { return `<div class="msg pop"><div class="pic">${av(avatar)}</div>${esc(text)}${small ? `<small>${esc(small)}</small>` : ''}</div>`; }
@@ -132,7 +169,7 @@ function render() {
   const myScore = scoreMap(S.awarded)[S.pid] || 0;
   const t = m.team, tOn = teamsOn();
   let score = myScore, sub = '';
-  if (tOn) sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`;
+  if (tOn && mode === 'g1') sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`; // გუნდები მხოლოდ თამაშ 1-ში
   const teamPts = mode === 'g1' && tOn;
   if (teamPts) score = teamScore(S.teams, t);
   const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${teamPts ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${fmtPts(score)}<small>ქულა</small></div>` : '';
@@ -143,14 +180,25 @@ function render() {
   else if (mode === 'g1') body = g1Html(m, l);
   else if (mode === 'g2') body = g2Html(m, l);
   else if (mode === 'final') body = msg(m.avatar, 'ფინალი! შეხედე ეკრანს.');
-  view(top + body);
+  view(top + body, [mode, l.qid || '', l.phase || '', l.view || ''].join('|'));
+  updateSndBtn();
 }
 
 function joinHtml() {
   const f = S.form;
   const mp = f.match && S.players[f.match];
-  if (mp) return `${logoHtml()}<div class="card join-card pop" style="text-align:center"><div class="msg" style="padding:6px 0 12px">ეს შენ ხარ?</div><div class="pic" style="width:110px;height:110px;margin:0 auto 12px">${av(mp.avatar)}</div><div style="font-size:24px;font-weight:800">${esc(mp.name)}</div><div class="muted" style="margin:4px 0 6px">${fmtPts(scoreMap(S.awarded)[f.match] || 0)} ქულა${teamsOn() ? ' · ' + esc(teamName(S.teams, mp.team)) : ''}</div><button class="btn primary block lg" id="rejoinYes">კი, გავაგრძელო</button><button class="btn block" id="rejoinNo" style="margin-top:10px">არა, სხვა სახელს ავირჩევ</button></div>`;
+  if (mp) return `${logoHtml()}<div class="card join-card pop" style="text-align:center"><div class="msg" style="padding:6px 0 12px">ეს შენ ხარ?</div><div class="pic" style="width:110px;height:110px;margin:0 auto 12px">${av(mp.avatar)}</div><div style="font-size:24px;font-weight:800">${esc(mp.name)}</div><div class="muted" style="margin:4px 0 6px">${fmtPts(scoreMap(S.awarded)[f.match] || 0)} ქულა</div><button class="btn primary block lg" id="rejoinYes">კი, გავაგრძელო</button><button class="btn block" id="rejoinNo" style="margin-top:10px">არა, სხვა სახელს ავირჩევ</button></div>`;
+  if (f.byCode) return `${logoHtml()}<div class="card join-card pop">
+  <div class="msg" style="padding:0 0 6px;font-size:22px">უკვე ვთამაშობდი</div>
+  <label class="f">თამაშის კოდი</label>
+  <input id="fcode" type="tel" inputmode="numeric" maxlength="6" value="${esc(f.code)}" placeholder="0000" autocomplete="off">
+  <label class="f">შენი პირადი კოდი (წამყვანისგან)</label>
+  <input id="frcode" type="tel" inputmode="numeric" maxlength="4" value="${esc(f.rcode)}" placeholder="0000" autocomplete="off">
+  <div class="err">${esc(f.err)}</div>
+  <button class="btn primary block lg" id="rcodeBtn">გაგრძელება</button>
+  <button class="btn block" id="rcodeBack" style="margin-top:10px">უკან</button></div>`;
   return `${logoHtml()}<div class="card join-card pop">
+  <p class="hint join-hint">${ico('sound')}ჩართე ხმა და გამორთე ჩუმი რეჟიმი</p>
   <label class="f">თამაშის კოდი</label>
   <input id="fcode" type="tel" inputmode="numeric" maxlength="6" value="${esc(f.code)}" placeholder="0000" autocomplete="off">
   <label class="f">შენი სახელი</label>
@@ -158,7 +206,8 @@ function joinHtml() {
   <label class="f">აირჩიე პერსონაჟი</label>
   <div class="avs">${AVATAR_IDS.map(a => `<button data-av="${a}" class="${f.avatar === a ? 'sel' : ''}">${av(a)}</button>`).join('')}</div>
   <div class="err">${esc(f.err)}</div>
-  <button class="btn primary block lg" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა</button></div>`;
+  <button class="btn primary block lg" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა</button>
+  <button class="btn block quietlink" id="rcodeOpen">უკვე ვთამაშობდი</button></div>`;
 }
 
 function g1Html(m, l) {
@@ -189,7 +238,7 @@ function g2Html(m, l) {
       return qt + opts.map((o, i) => `<button class="opt" data-pick="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${LETTERS[i]}</span>${esc(o)}</button>`).join('');
     }
     if (q.type === 'multi') {
-      return qt + `<div class="msg" style="padding:0 0 4px"><small>შეიძლება რამდენიმე სწორი იყოს</small></div>` +
+      return qt + `<div class="msg" style="padding:0 0 4px"><small>ერთზე მეტი პასუხია სწორი</small></div>` +
         opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? ico('check') : LETTERS[i]}</span>${esc(o)}</button>`).join('') +
         `<button class="btn primary block lg" id="sendMulti" ${S.sel.length ? '' : 'disabled'} style="margin-top:18px">გაგზავნა</button>`;
     }
@@ -237,6 +286,11 @@ function scoreHtml(l) {
 // ───────── დაჭერები ─────────
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
+  if (!SFX.ctx || SFX.ctx.state !== 'running') unlockSound();
+  if (t.id === 'sndBtn') return;
+  if (t.id === 'rcodeOpen') { S.form.byCode = true; S.form.err = ''; return render(); }
+  if (t.id === 'rcodeBack') { S.form.byCode = false; S.form.err = ''; return render(); }
+  if (t.id === 'rcodeBtn') return rejoinByCode();
   if (t.dataset.av) { S.form.avatar = t.dataset.av; S.form.err = ''; render(); }
   else if (t.id === 'joinBtn') join();
   else if (t.id === 'rejoinYes') rejoin(true);
@@ -255,8 +309,12 @@ document.addEventListener('input', e => {
   if (e.target.id === 'fcode') S.form.code = e.target.value;
   else if (e.target.id === 'fname') S.form.name = e.target.value;
   else if (e.target.id === 'typed') S.typed = e.target.value;
+  else if (e.target.id === 'frcode') S.form.rcode = e.target.value;
 });
+// კლავიატურის გახსნისას ველი და „გაგზავნა“ ჩანდეს
+document.addEventListener('focusin', e => { if (e.target.id === 'typed') setTimeout(() => { const b = $('#sendText'); (b || e.target).scrollIntoView({ block: 'end', behavior: 'smooth' }); }, 350); });
+if (window.visualViewport) visualViewport.addEventListener('resize', () => { const a = document.activeElement; if (a && a.id === 'typed') { const b = $('#sendText'); if (b) b.scrollIntoView({ block: 'end' }); } });
 document.addEventListener('touchstart', e => {
-  const t = e.target.closest('#buzz'); if (t) { e.preventDefault(); buzz(); }
+  const t = e.target.closest('#buzz'); if (t) { e.preventDefault(); if (!SFX.ctx || SFX.ctx.state !== 'running') unlockSound(); buzz(); }
 }, { passive: false });
 render();

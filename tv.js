@@ -38,7 +38,7 @@ function handleSignals(l) {
   const p = prevLive;
   if (p) {
     if (l.mode === 'g1' && l.buzz && (!p.buzz || p.buzz.pid !== l.buzz.pid) && l.qid === p.qid) SFX.play('buzz', qSfx(l));
-    if (l.mode === 'g2' && l.qid === p.qid && p.phase !== 'revealed' && l.phase === 'revealed') SFX.play('reveal', qSfx(l));
+    if (l.mode === 'g2' && l.qid === p.qid && p.phase !== 'revealed' && l.phase === 'revealed') { SFX.play('reveal', qSfx(l)); maybeWrongFx(l); }
     if (l.mode === 'g2' && l.view === 'scoreboard' && p.view !== 'scoreboard') SFX.play('scoreboard', qSfx(l));
     if (l.mode === 'final' && p.mode === 'final' && (l.step || 0) > (p.step || 0)) SFX.play(finalSteps()[(l.step || 1) - 1] === 'loser' ? 'loser' : 'podium');
   }
@@ -76,12 +76,15 @@ db.ref('live').on('value', s => {
 // ───────── გამოსახვა ─────────
 let lastHtml = null, lastKey = '', enterT = null, boardKey = null, finKey = null;
 function enter() { app.classList.add('enter'); clearTimeout(enterT); enterT = setTimeout(() => app.classList.remove('enter'), 1400); }
+// ეკრანის „ტიპი“ (რეჟიმი + კითხვა): მისი შეცვლისას ძველი გადის, ახალი შემოდის
+const screenOf = k => (k || '').split('|').slice(0, 2).join('|');
 function view(html, key) {
   boardKey = null; finKey = null;
   if (html === lastHtml) return;
-  if (key !== lastKey) { enter(); lastKey = key; }
-  app.innerHTML = html; lastHtml = html;
-  const ph = $('.qimg-ph');
+  let kind = null;
+  if (key !== lastKey) { kind = lastKey && screenOf(key) !== screenOf(lastKey) ? 'slide' : null; enter(); lastKey = key; }
+  swapScreen(app, html, kind); lastHtml = html;
+  const ph = app.querySelector('.qimg-ph');
   if (ph) {
     const id = ph.dataset.id, data = imgCache[id];
     if (data) {
@@ -166,8 +169,8 @@ function renderBoard() {
   cur.forEach((p, i) => { curIdx[p.id] = i; });
   const n = cur.length || 1, rh = Math.min(8.4, 62 / n);
   const y = i => `translateY(calc(var(--v) * ${(rh * i).toFixed(2)}))`;
-  const rows = cur.map(p => `<div class="sbrow ${prevIdx[p.id] === 0 ? 'first' : ''}" data-id="${p.id}" style="height:calc(var(--v) * ${(rh - 1).toFixed(2)});transform:${y(prevIdx[p.id] || 0)}"><span class="pos">${(prevIdx[p.id] || 0) + 1}</span><span class="pic">${av(p.avatar)}</span><span class="nm">${tdot(p.team)}${esc(p.name)}</span><span class="pt">${fmtPts(prevSc[p.id] || 0)}</span><span class="ptl">ქულა</span></div>`).join('');
-  app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('board_title', l.qid))}</div><div class="sb" style="height:calc(var(--v) * ${(rh * n).toFixed(2)})">${rows}</div></div>`;
+  const rows = cur.map(p => `<div class="sbrow ${prevIdx[p.id] === 0 ? 'first' : ''}" data-id="${p.id}" style="height:calc(var(--v) * ${(rh - 1).toFixed(2)});transform:${y(prevIdx[p.id] || 0)}"><span class="pos">${(prevIdx[p.id] || 0) + 1}</span><span class="pic">${av(p.avatar)}</span><span class="nm">${esc(p.name)}</span><span class="pt">${fmtPts(prevSc[p.id] || 0)}</span><span class="ptl">ქულა</span></div>`).join('');
+  swapScreen(app, `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('board_title', l.qid))}</div><div class="sb" style="height:calc(var(--v) * ${(rh * n).toFixed(2)})">${rows}</div></div>`, 'slide');
   setTimeout(() => {
     cur.forEach((p, i) => {
       const el = app.querySelector(`.sbrow[data-id="${p.id}"]`); if (!el) return;
@@ -186,8 +189,8 @@ function renderFinal() {
     const r = ranking(S.players, S.awarded), places = steps.filter(x => x[0] === 'p').length;
     const slot = (i, cls, medal) => { if (i >= places) return ''; const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${fmtPts(p.score)} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
     const last = steps.includes('loser') ? r[r.length - 1] : null;
-    app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
-      (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${fmtPts(last.score)} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>';
+    swapScreen(app, `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
+      (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${fmtPts(last.score)} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>', 'slide');
   }
   const shown = steps.slice(0, step);
   app.querySelectorAll('.pl').forEach(el => { el.classList.toggle('show', !!el.firstChild && shown.includes('p' + el.dataset.i)); });
@@ -205,3 +208,35 @@ function confetti(loser) {
   }
 }
 render();
+
+
+// ───────── „როცა ვინმე შეცდება“: სურათი / GIF / ვიდეო / ეფექტი ტვ-ზე გამოაშკარავებისას ─────────
+function maybeWrongFx(l) {
+  const fx = l.q && l.q.wrongFx; if (!fx || l.q.type === 'poll') return;
+  const right = (l.reveal && l.reveal.right) || {};
+  const someoneWrong = Object.keys(S.answers).some(p => S.players[p] && !right[p]);
+  if (someoneWrong) setTimeout(() => playWrongFx(fx), 700);
+}
+async function playWrongFx(fx) {
+  let box = document.getElementById('fx'); if (box) box.remove();
+  box = document.createElement('div'); box.id = 'fx'; box.className = 'fxbox';
+  document.body.appendChild(box);
+  const done = ms => setTimeout(() => { box.classList.add('fxout'); setTimeout(() => box.remove(), 400); }, ms);
+  if (fx.type === 'img' && fx.id) {
+    const d = (await db.ref('libdata/img/' + fx.id).once('value')).val(); if (!d) return box.remove();
+    box.innerHTML = `<img class="fxmedia" src="${d}" alt="">`; done(3800);
+  } else if (fx.type === 'video' && fx.id) {
+    const d = (await db.ref('libdata/vid/' + fx.id).once('value')).val(); if (!d) return box.remove();
+    box.innerHTML = `<video class="fxmedia" src="${d}" autoplay playsinline></video>`;
+    const v = box.querySelector('video'); v.muted = !SFX.ctx; v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    v.onended = () => done(0); done(11000);
+  } else if (fx.name === 'shake') {
+    box.remove(); app.classList.remove('shake'); void app.offsetWidth; app.classList.add('shake'); setTimeout(() => app.classList.remove('shake'), 900);
+  } else if (fx.name === 'tomatoes') {
+    const tomato = '<svg viewBox="0 0 40 40"><circle cx="20" cy="23" r="15" fill="#E5533D" stroke="#3A0F2A" stroke-width="2"/><path d="M20 9l-5-4 4 1 1-4 2 4 4-1-4 4z" fill="#7BBF6A" stroke="#3A0F2A" stroke-width="1.5" stroke-linejoin="round"/><ellipse cx="14" cy="18" rx="3" ry="2" fill="#fff" opacity=".5"/></svg>';
+    box.innerHTML = Array.from({ length: 26 }, () => `<span class="tom" style="left:${Math.random() * 96}vw;animation-duration:${1.6 + Math.random() * 1.4}s;animation-delay:${Math.random() * .9}s;width:${4 + Math.random() * 4}vw">${tomato}</span>`).join('');
+    done(3600);
+  } else if (fx.name === 'stamp') {
+    box.innerHTML = '<div class="stamp">შეცდომა!</div>'; done(2600);
+  } else box.remove();
+}
