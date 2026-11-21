@@ -9,13 +9,17 @@ function popup(o) {
   return new Promise(res => {
     const old = document.getElementById('pop'); if (old) old.remove();
     const d = document.createElement('div'); d.className = 'pop-back'; d.id = 'pop';
-    d.innerHTML = `<div class="pop-card" role="dialog" aria-modal="true">${o.title ? `<h4>${esc(o.title)}</h4>` : ''}<p>${esc(o.text || '')}</p><div class="pop-acts">${o.cancel === false ? '' : `<button class="btn quiet" data-pop="no">${esc(o.cancel || 'გაუქმება')}</button>`}<button class="btn ${o.danger ? 'danger' : 'primary'}" data-pop="ok">${esc(o.ok || 'კარგი')}</button></div></div>`;
-    const done = v => { document.removeEventListener('keydown', key, true); d.remove(); res(v); };
+    d.innerHTML = `<div class="pop-card" role="dialog" aria-modal="true">${o.title ? `<h4>${esc(o.title)}</h4>` : ''}${o.text ? `<p>${esc(o.text)}</p>` : ''}${o.html || ''}<div class="pop-acts">${o.cancel === false ? '' : `<button class="btn quiet" data-pop="no">${esc(o.cancel || 'გაუქმება')}</button>`}<button class="btn ${o.danger ? 'danger' : 'primary'}" data-pop="ok">${esc(o.ok || 'კარგი')}</button></div></div>`;
+    const done = v => {
+      let out = v;
+      if (v && o.html) { out = {}; d.querySelectorAll('[name]').forEach(el => { out[el.name] = el.value; }); }
+      document.removeEventListener('keydown', key, true); d.remove(); res(out);
+    };
     const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); } };
     d.addEventListener('click', e => { const b = e.target.closest('[data-pop]'); if (b) done(b.dataset.pop === 'ok'); else if (e.target === d) done(false); });
     document.addEventListener('keydown', key, true);
     document.body.appendChild(d);
-    setTimeout(() => { const b = d.querySelector('[data-pop=ok]'); if (b) b.focus(); }, 0);
+    setTimeout(() => { const f = d.querySelector('input, select') || d.querySelector('[data-pop=ok]'); if (f) { f.focus(); if (f.select) f.select(); } }, 0);
   });
 }
 const ask = (text, ok) => popup({ title: 'დარწმუნებული ხარ?', text, ok: ok || 'დიახ, წაშალე', danger: true });

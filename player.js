@@ -24,8 +24,9 @@ db.ref('session').on('value', s => {
   render();
 });
 db.ref('players').on('value', s => {
-  S.players = s.val() || {}; S.ready.players = true;
+  S.players = cleanPlayers(s.val()); S.ready.players = true;
   if (S.pid && !S.players[S.pid] && !S.busy) forget();
+  presence();
   render();
 });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
@@ -48,26 +49,45 @@ function bindAns() {
 }
 function me() { return S.pid ? S.players[S.pid] : null; }
 
+// ონლაინ / ოფლაინ: თითო გახსნილ ტელეფონზე ერთი ჩანაწერი, გათიშვისას თავისით იშლება
+let presRef = null, presPid = null;
+function presence() {
+  const want = S.pid && S.players[S.pid] ? S.pid : null;
+  if (want === presPid) return;
+  if (presRef) { presRef.onDisconnect().cancel(); presRef.remove(); presRef = null; }
+  presPid = want;
+  if (want) { presRef = db.ref('players/' + want + '/conns').push(); presRef.onDisconnect().remove(); presRef.set(true); }
+}
+watchConnection(ok => { if (ok && presRef && presPid && S.players[presPid]) { presRef.onDisconnect().remove(); presRef.set(true); } });
+
 // ───────── შესვლა ─────────
 async function join() {
   const f = S.form;
   const code = f.code.trim(), name = f.name.trim();
   if (!S.session || code !== String(S.session.code)) { f.err = 'კოდი არასწორია'; return render(); }
   if (!name) { f.err = 'ჩაწერე სახელი'; return render(); }
+  // იგივე სახელი უკვე თამაშშია → ალბათ ის თვითონ არის (გადატვირთვა, სხვა ტელეფონი…)
+  const ex = Object.entries(S.players).find(([, p]) => (p.name || '').trim().toLowerCase() === name.toLowerCase());
+  if (ex) { f.match = ex[0]; f.err = ''; return render(); }
   if (!f.avatar) { f.err = 'აირჩიე პერსონაჟი'; return render(); }
-  if (Object.values(S.players).some(p => (p.name || '').toLowerCase() === name.toLowerCase())) {
-    f.err = 'ეს სახელი უკვე დაკავებულია, სხვა აირჩიე'; return render();
-  }
   S.busy = true; f.err = '';
   try {
     const r = await db.ref('session/nextTeam').transaction(n => (n || 0) + 1);
-    const team = (r.snapshot.val() - 1) % 4;
+    const team = (r.snapshot.val() - 1) % teamCount();
     const pid = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     await db.ref('players/' + pid).set({ name, avatar: f.avatar, team, joined: TS });
     store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
     S.pid = pid; if (S.curQ) bindAns();
   } catch (e) { f.err = 'ვერ შევედით, სცადე თავიდან'; }
-  S.busy = false; render();
+  S.busy = false; presence(); render();
+}
+function rejoin(yes) {
+  const f = S.form, pid = f.match; f.match = null;
+  if (yes && pid && S.players[pid]) {
+    store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
+    S.pid = pid; if (S.curQ) bindAns(); presence();
+  } else { f.name = ''; f.err = 'აირჩიე სხვა სახელი'; }
+  render();
 }
 
 // ───────── თამაში 1: ზარი ─────────
@@ -76,8 +96,10 @@ function buzz() {
   if (navigator.vibrate) navigator.vibrate(60);
   db.ref('live').transaction(l => {
     if (!l || l.mode !== 'g1' || l.phase !== 'open' || l.buzz) return; // გაუქმება
-    if (l.wrongTeams && l.wrongTeams[m.team]) return;
-    l.buzz = { pid: S.pid, name: m.name, avatar: m.avatar, team: m.team };
+    const key = buzzKeyOf(l, m, S.pid);
+    if (buzzBlocked(l, key)) return;
+    if (l.lastWrong && l.lastWrong !== key) l.lastWrong = null;
+    l.buzz = { pid: S.pid, name: m.name, avatar: m.avatar, team: m.team, key };
     l.phase = 'buzzed';
     return l;
   }, null, false);
@@ -108,11 +130,12 @@ function render() {
   if (!m) return view(joinHtml());
   const l = S.live || {}, mode = l.mode || 'lobby';
   const myScore = scoreMap(S.awarded)[S.pid] || 0;
-  const t = m.team;
+  const t = m.team, tOn = teamsOn();
   let score = myScore, sub = '';
-  sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`;
-  if (mode === 'g1') score = teamScore(S.teams, t);
-  const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${mode === 'g1' ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${score}</div>` : '';
+  if (tOn) sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`;
+  const teamPts = mode === 'g1' && tOn;
+  if (teamPts) score = teamScore(S.teams, t);
+  const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${teamPts ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${fmtPts(score)}<small>ქულა</small></div>` : '';
   const top = `<div class="top" style="--t:${TEAM_HUES[t]}"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
   let body = '';
   if (mode === 'lobby') body = msg(m.avatar, pickText('wait_start', S.pid + 'lobby'));
@@ -125,6 +148,8 @@ function render() {
 
 function joinHtml() {
   const f = S.form;
+  const mp = f.match && S.players[f.match];
+  if (mp) return `${logoHtml()}<div class="card join-card pop" style="text-align:center"><div class="msg" style="padding:6px 0 12px">ეს შენ ხარ?</div><div class="pic" style="width:110px;height:110px;margin:0 auto 12px">${av(mp.avatar)}</div><div style="font-size:24px;font-weight:800">${esc(mp.name)}</div><div class="muted" style="margin:4px 0 6px">${fmtPts(scoreMap(S.awarded)[f.match] || 0)} ქულა${teamsOn() ? ' · ' + esc(teamName(S.teams, mp.team)) : ''}</div><button class="btn primary block lg" id="rejoinYes">კი, გავაგრძელო</button><button class="btn block" id="rejoinNo" style="margin-top:10px">არა, სხვა სახელს ავირჩევ</button></div>`;
   return `${logoHtml()}<div class="card join-card pop">
   <label class="f">თამაშის კოდი</label>
   <input id="fcode" type="tel" inputmode="numeric" maxlength="6" value="${esc(f.code)}" placeholder="0000" autocomplete="off">
@@ -138,11 +163,12 @@ function joinHtml() {
 
 function g1Html(m, l) {
   if (!l.qid) return msg(m.avatar, pickText('wait_start', S.pid + 'g1'));
-  const t = m.team, b = l.buzz, seed = l.qid + S.pid;
+  const b = l.buzz, seed = l.qid + S.pid, key = buzzKeyOf(l, m, S.pid), solo = key[0] === 'p';
   if (l.phase === 'open') {
-    if (l.wrongTeams && l.wrongTeams[t]) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>თქვენმა გუნდმა უკვე სცადა. ახლა სხვებს აძლევენ შანსს.</small></div>`;
+    if (buzzBlocked(l, key)) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>${solo ? 'შენ უკვე სცადე' : 'თქვენმა გუნდმა უკვე სცადა'}. ახლა სხვებს აძლევენ შანსს.</small></div>`;
     return `<button class="buzz" id="buzz">დააჭირე!</button>`;
   }
+  if (l.phase === 'missed') return msg(m.avatar, pickText('wrong', seed), 'ამ კითხვაზე ღილაკი დაიკეტა. ველოდებით შემდეგს.');
   if (b && b.pid === S.pid) {
     return `<button class="buzz won" disabled>${esc(pickText('buzz_first', seed))}</button>` + (l.phase === 'right' ? msg(m.avatar, pickText('correct', seed)) : `<div class="msg"><small>თქვით პასუხი ხმამაღლა!</small></div>`);
   }
@@ -173,12 +199,14 @@ function g2Html(m, l) {
   }
   if (phase === 'locked') return qt + (a ? sentHtml(q, a) + msg(m.avatar, 'პასუხები დაიკეტა', 'ველოდებით გამოაშკარავებას…') : msg(m.avatar, pickText('too_slow', seed), 'პასუხები დაიკეტა'));
   if (phase === 'revealed') {
-    const aw = S.awarded[l.qid] && S.awarded[l.qid][S.pid];
+    const pts = Number(S.awarded[l.qid] && S.awarded[l.qid][S.pid]) || 0;
+    const right = !!(l.reveal && l.reveal.right && l.reveal.right[S.pid]);
     let res;
     if (q.type === 'poll') res = msg(m.avatar, 'მადლობა ხმისთვის!');
-    else if (aw) res = msg(m.avatar, pickText('correct', seed), '+1 ქულა');
+    else if (right && pts > 0) res = msg(m.avatar, pickText('correct', seed), `+${fmtPts(pts)} ქულა`);
+    else if (right) res = msg(m.avatar, pickText('correct', seed), 'სწორია, მაგრამ ქულა უფრო სწრაფებს ერგოთ.');
     else if (!a) res = msg(m.avatar, pickText('too_slow', seed));
-    else res = msg(m.avatar, pickText('wrong', seed));
+    else res = msg(m.avatar, pickText('wrong', seed), pts < 0 ? `−${fmtPts(-pts)} ქულა` : '');
     let corr = '';
     if (q.type === 'single' || q.type === 'multi') {
       const c = arr((l.reveal || {}).correct).map(Number);
@@ -201,7 +229,7 @@ function sentHtml(q, a) {
 function scoreHtml(l) {
   const r = ranking(S.players, S.awarded);
   const idx = r.findIndex(x => x.id === S.pid);
-  const row = (p, i) => `<div class="row ${p.id === S.pid ? 'me' : ''}"><span>${i + 1}.</span><span class="pic">${av(p.avatar)}</span><span style="flex:1">${esc(p.name)}</span><b>${p.score}</b></div>`;
+  const row = (p, i) => `<div class="row ${p.id === S.pid ? 'me' : ''}"><span>${i + 1}.</span><span class="pic">${av(p.avatar)}</span><span style="flex:1">${esc(p.name)}</span><b>${fmtPts(p.score)} <small style="font-weight:400">ქულა</small></b></div>`;
   const mine = idx >= 5 ? row(r[idx], idx) : '';
   return `<div class="title head">${esc(pickText('board_title', l.qid))}</div>${r.slice(0, 5).map(row).join('')}${mine}<div class="msg"><small>სრული ცხრილი ეკრანზეა</small></div>`;
 }
@@ -211,6 +239,8 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.av) { S.form.avatar = t.dataset.av; S.form.err = ''; render(); }
   else if (t.id === 'joinBtn') join();
+  else if (t.id === 'rejoinYes') rejoin(true);
+  else if (t.id === 'rejoinNo') rejoin(false);
   else if (t.id === 'buzz') buzz();
   else if (t.dataset.pick !== undefined) sendAns(Number(t.dataset.pick));
   else if (t.dataset.tog !== undefined) {

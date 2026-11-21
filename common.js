@@ -21,11 +21,11 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const arr = v => Array.isArray(v) ? v.filter(x => x != null) : Object.values(v || {});
 
 // ფერები: მუქი ფონი, ერთი ვარდისფერი აქცენტი (CSS-ში)
-const TEAM_COLORS = ['#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA'];
-const TEAM_TEXT = ['#3A0F2A', '#3A0F2A', '#3A0F2A', '#3A0F2A'];
+const TEAM_COLORS = ['#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA', '#FBD0BE', '#FFFFFF'];
+const TEAM_TEXT = ['#3A0F2A', '#3A0F2A', '#3A0F2A', '#3A0F2A', '#3A0F2A', '#3A0F2A'];
 const OPT_COLORS = ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'];
 // გუნდების ფერები: სახელის ტეგის ფონი
-const TEAM_HUES = ['#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA'];
+const TEAM_HUES = ['#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA', '#FBD0BE', '#FFFFFF'];
 const ttag = (i, name) => `<span class="ttag" style="--t:${TEAM_HUES[i] || '#F9C9D8'}">${esc(name)}</span>`;
 const tdot = i => `<i class="tdot" style="--t:${TEAM_HUES[i] || '#888'}"></i>`;
 // თეთრი ხაზოვანი ხატულები (ემოჯის ნაცვლად)
@@ -92,16 +92,88 @@ function logoHtml(name) {
 }
 
 // ───────── ქულები ─────────
+// ქულა თითო კითხვაზე: true = 1 (ძველი ფორმატი) ან რიცხვი (შეიძლება უარყოფითიც)
 function scoreMap(awarded) {
   const m = {};
-  for (const q in (awarded || {})) for (const p in awarded[q]) m[p] = (m[p] || 0) + 1;
+  for (const q in (awarded || {})) for (const p in awarded[q]) { const v = awarded[q][p]; m[p] = Math.round(((m[p] || 0) + (v === true ? 1 : Number(v) || 0)) * 100) / 100; }
   return m;
 }
+const fmtPts = n => { n = Number(n) || 0; return Number.isInteger(n) ? String(n) : n.toFixed(1); };
+// მხოლოდ ნამდვილი მოთამაშეები (სახელით)
+function cleanPlayers(v) { const o = {}; for (const k in (v || {})) if (v[k] && v[k].name) o[k] = v[k]; return o; }
+const isOnline = p => !!(p && p.conns && Object.keys(p.conns).length);
 function ranking(players, awarded) {
   const sc = scoreMap(awarded);
-  return Object.entries(players || {})
+  return Object.entries(cleanPlayers(players))
     .map(([id, p]) => Object.assign({ id }, p, { score: sc[id] || 0 }))
     .sort((a, b) => (b.score - a.score) || ((a.joined || 0) - (b.joined || 0)));
+}
+
+// ───────── წესები (ადმინში იცვლება; კითხვას შეუძლია საკუთარი) ─────────
+const DEFAULT_RULES = {
+  1: { award: 'all', awardN: 3, pts: 1, penalty: 0, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4 },
+  2: { award: 'all', awardN: 3, pts: 1, penalty: 0, multi: 'exact', typed: 'manual', board: true }
+};
+const RULE_OPTS = {
+  award: [['all', 'ყველა, ვინც სწორად უპასუხა'], ['first', 'მხოლოდ პირველი სწორი'], ['firstN', 'მხოლოდ პირველი N სწორი']],
+  multi: [['exact', 'ქულა მხოლოდ ზუსტად სწორზე'], ['partial', 'ნაწილობრივი ქულა თითო სწორ არჩევანზე']],
+  typed: [['manual', 'წამყვანი თვითონ ნიშნავს'], ['auto', 'ავტომატური შედარება (გამოტოვებების და ასოების ზომის გარეშე)']],
+  afterWrong: [['others', 'ღილაკი იხსნება სხვა გუნდებისთვის'], ['all', 'ღილაკი იხსნება ყველასთვის, იგივე გუნდისთვისაც'], ['next', 'გადავდივართ შემდეგ კითხვაზე']],
+  board: [[true, 'ჩართული'], [false, 'გამორთული']],
+  sameTeamTwice: [[true, 'კი'], [false, 'არა, ჯერ სხვამ უნდა სცადოს']]
+};
+const optLabel = (k, v) => { const o = (RULE_OPTS[k] || []).find(x => String(x[0]) === String(v)); return o ? o[1] : String(v); };
+function rulesG(g) { return Object.assign({}, DEFAULT_RULES[g], (CFG.rules || {})['g' + g] || {}); }
+function rulesFor(q) { if (!q) return {}; const r = Object.assign(rulesG(q.game || 2), q.rules || {}); r.teamsOn = rulesG(1).teamsOn; return r; }
+function finalRules() { return Object.assign({ places: 3, loser: true }, (CFG.rules || {}).final || {}); }
+function teamCount() { const n = Number(rulesG(1).teamCount) || 4; return Math.max(2, Math.min(6, n)); }
+function teamsOn() { return rulesG(1).teamsOn !== false; }
+// ფინალის ნაბიჯები: ['p2','p1','p0','loser'] — ქვემოდან ზემოთ
+function finalSteps() { const f = finalRules(), n = Math.max(1, Math.min(3, Number(f.places) || 3)), st = []; for (let i = n - 1; i >= 0; i--) st.push('p' + i); if (f.loser !== false) st.push('loser'); return st; }
+// მოკლე აღწერა წამყვანისთვის
+function rulesText(r, q) {
+  const t = [`სწორზე +${fmtPts(r.pts)}`];
+  if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
+  if (q && q.game === 1) {
+    t.push(r.afterWrong === 'next' ? 'შეცდომის შემდეგ — შემდეგი კითხვა' : r.afterWrong === 'all' ? (r.sameTeamTwice ? 'შეცდომის შემდეგ ყველას შეუძლია' : 'შეცდომის შემდეგ ყველას, ოღონდ ჯერ სხვამ') : 'შეცდომის შემდეგ — სხვა გუნდები');
+    if (!r.teamsOn) t.push('ყველა თავისთვის');
+  } else {
+    t.push(r.award === 'first' ? 'ქულა მხოლოდ პირველ სწორს' : r.award === 'firstN' ? `ქულა პირველ ${r.awardN} სწორს` : 'ქულა ყველა სწორს');
+    if (q && q.type === 'multi') t.push(r.multi === 'partial' ? 'ნაწილობრივი ქულა' : 'მხოლოდ ზუსტად სწორი');
+    if (q && q.type === 'text') t.push(r.typed === 'auto' ? 'ავტომატური შემოწმება' : 'წამყვანი ნიშნავს');
+    if (r.board === false) t.push('ქულების ცხრილის გარეშე');
+  }
+  return t.join(' · ');
+}
+// ბლიცი: ვინ ვერ დააჭერს ახლა (key = 't'+გუნდი ან 'p'+მოთამაშე)
+function buzzBlocked(l, key) {
+  if (!l || l.phase !== 'open') return true;
+  const r = (l.q && l.q.rules) || {};
+  if (r.afterWrong === 'all') return !r.sameTeamTwice && l.lastWrong === key;
+  return !!(l.wrong && l.wrong[key]);
+}
+const buzzKeyOf = (l, p, pid) => ((l && l.q && l.q.rules && l.q.rules.teamsOn === false) ? 'p' + pid : 't' + p.team);
+// ჩაწერითი პასუხის ავტომატური შედარება (რამდენიმე სწორი „/“-ით)
+const normAns = s => String(s || '').toLowerCase().replace(/[\s.,!?'"„“”-]+/g, '');
+function autoMatch(given, expected) { const g = normAns(given); return !!g && String(expected || '').split('/').some(x => normAns(x) && normAns(x) === g); }
+// კითხვის ქულები წესების მიხედვით → { aw: {pid: ქულა}, right: {pid: true} }
+function scoreQuestion(q, entries, r) {
+  const aw = {}, right = {};
+  if (!q || q.type === 'poll') return { aw, right };
+  const pts = Number(r.pts) || 0, pen = Number(r.penalty) || 0, corr = arr(q.correct).map(Number);
+  const sorted = entries.slice().sort((a, b) => ((a[1].t || 0) - (b[1].t || 0)));
+  const good = [];
+  sorted.forEach(([pid, a]) => {
+    let frac = 0;
+    if (q.type === 'text') frac = (a.ok === true || (a.ok === undefined && r.typed === 'auto' && autoMatch(a.a, q.answer))) ? 1 : 0;
+    else if (q.type === 'multi' && r.multi === 'partial') { const mine = arr(a.a).map(Number), hit = mine.filter(i => corr.includes(i)).length, miss = mine.length - hit; frac = corr.length ? Math.max(0, (hit - miss) / corr.length) : 0; }
+    else frac = isCorrectChoice(q, a.a) ? 1 : 0;
+    if (frac > 0) { right[pid] = true; good.push([pid, frac]); }
+    else if (pen) aw[pid] = -pen;
+  });
+  const lim = r.award === 'first' ? 1 : r.award === 'firstN' ? Math.max(1, Number(r.awardN) || 1) : Infinity;
+  good.slice(0, lim).forEach(([pid, frac]) => { const v = Math.round(pts * frac * 100) / 100; if (v) aw[pid] = v; });
+  return { aw, right };
 }
 function teamName(teams, i) { return (teams && teams[i] && teams[i].name) || ('გუნდი ' + (i + 1)); }
 function teamScore(teams, i) { return (teams && teams[i] && teams[i].score) || 0; }

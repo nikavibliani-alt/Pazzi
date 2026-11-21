@@ -40,7 +40,7 @@ function handleSignals(l) {
     if (l.mode === 'g1' && l.buzz && (!p.buzz || p.buzz.pid !== l.buzz.pid) && l.qid === p.qid) SFX.play('buzz', qSfx(l));
     if (l.mode === 'g2' && l.qid === p.qid && p.phase !== 'revealed' && l.phase === 'revealed') SFX.play('reveal', qSfx(l));
     if (l.mode === 'g2' && l.view === 'scoreboard' && p.view !== 'scoreboard') SFX.play('scoreboard', qSfx(l));
-    if (l.mode === 'final' && p.mode === 'final' && (l.step || 0) > (p.step || 0)) SFX.play((l.step || 0) >= 4 ? 'loser' : 'podium');
+    if (l.mode === 'final' && p.mode === 'final' && (l.step || 0) > (p.step || 0)) SFX.play(finalSteps()[(l.step || 1) - 1] === 'loser' ? 'loser' : 'podium');
   }
   prevLive = JSON.parse(JSON.stringify(l));
 }
@@ -54,7 +54,7 @@ async function loadImg(id) {
   lastHtml = null; render();
 }
 db.ref('session').on('value', s => { S.session = s.val(); render(); });
-db.ref('players').on('value', s => { S.players = s.val() || {}; render(); });
+db.ref('players').on('value', s => { S.players = cleanPlayers(s.val()); render(); });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('live').on('value', s => {
@@ -92,8 +92,15 @@ function view(html, key) {
 }
 const imgPh = id => `<div class="qimg-ph" data-id="${esc(id)}"></div>`;
 const tmStyle = i => `background:${TEAM_COLORS[i]};color:${TEAM_TEXT[i]}`;
-function teamsStrip(big, wrong) {
-  return `<div class="teams ${big ? 'big' : ''} stag">${[0, 1, 2, 3].map(i => `<div class="tm ${wrong && wrong[i] ? 'out' : ''}" ><div class="n">${ttag(i, teamName(S.teams, i))}</div><div class="s">${teamScore(S.teams, i)}</div></div>`).join('')}</div>`;
+// ვინ სცადა უკვე ამ კითხვაზე (გამკრთალებისთვის)
+function tried(l, key) { const r = (l && l.q && l.q.rules) || {}; return r.afterWrong === 'all' ? (!r.sameTeamTwice && l.lastWrong === key) : !!(l && l.wrong && l.wrong[key]); }
+function teamsStrip(big, l) {
+  if (!teamsOn()) { // ყველა თავისთვის: საუკეთესო მოთამაშეები
+    const r = ranking(S.players, S.awarded).slice(0, big ? 8 : 6);
+    return `<div class="teams ${big ? 'big' : ''} stag" style="--n:${big ? Math.min(4, Math.max(2, r.length)) : Math.max(1, r.length)}">${r.map(p => `<div class="tm ${l && tried(l, 'p' + p.id) ? 'out' : ''}"><div class="n">${esc(p.name)}</div><div class="s">${fmtPts(p.score)}</div><div class="sl">ქულა</div></div>`).join('')}</div>`;
+  }
+  const n = teamCount();
+  return `<div class="teams ${big ? 'big' : ''} stag" style="--n:${big ? (n > 4 ? 3 : 2) : n}">${Array.from({ length: n }, (_, i) => `<div class="tm ${l && tried(l, 't' + i) ? 'out' : ''}"><div class="n">${ttag(i, teamName(S.teams, i))}</div><div class="s">${fmtPts(teamScore(S.teams, i))}</div><div class="sl">ქულა</div></div>`).join('')}</div>`;
 }
 function joinInfo() { return location.href.replace(/tv\.html.*$/, '').replace(/^https?:\/\//, ''); }
 
@@ -119,10 +126,10 @@ function g1() {
   let over = '';
   const b = l.buzz;
   if (b) {
-    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div><div class="tn rise" style="background:${TEAM_HUES[b.team]}">${esc(teamName(S.teams, b.team))}</div>${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
+    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div>${teamsOn() ? `<div class="tn rise" style="background:${TEAM_HUES[b.team]}">${esc(teamName(S.teams, b.team))}</div>` : ''}${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
   }
   const ansBox = (!b && l.reveal) ? `<div class="ansbox pop">${esc(l.reveal.answer)}</div>` : '';
-  return `<div class="scr ${q.img ? 'hasimg' : ''}">${over}${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${q.snd ? `<div class="sub">${ico('music')} გამოიცანი სიმღერა!</div>` : ''}${ansBox}<div style="flex:${q.img ? 0 : 1}"></div>${teamsStrip(false, l.wrongTeams)}</div>`;
+  return `<div class="scr ${q.img ? 'hasimg' : ''}">${over}${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${q.snd ? `<div class="sub">${ico('music')} გამოიცანი სიმღერა!</div>` : ''}${ansBox}${l.phase === 'missed' ? '<div class="cnt">ამ კითხვაზე ღილაკი დაიკეტა</div>' : ''}<div style="flex:${q.img ? 0 : 1}"></div>${teamsStrip(false, l)}</div>`;
 }
 
 function g2() {
@@ -137,11 +144,12 @@ function g2() {
   if (phase === 'answering') status = `<div class="cnt">უპასუხა ${answered}/${total}</div>`;
   else if (phase === 'locked') status = `<div class="cnt">${ico('lock')} პასუხები დაიკეტა · ${answered}/${total}</div>`;
   else {
-    const got = Object.keys(S.awarded[l.qid] || {}).filter(p => S.players[p]);
+    const rightIds = Object.keys((l.reveal && l.reveal.right) || {}).filter(p => S.players[p]);
+    const got = Object.keys(S.awarded[l.qid] || {}).filter(p => S.players[p] && Number(S.awarded[l.qid][p]) > 0);
     if (q.type === 'poll') status = `<div class="cnt">ხმა მისცა ${answered}-მა</div>`;
     else {
       const ansTxt = q.type === 'text' && l.reveal && l.reveal.answer ? `<div class="ansbox pop">${esc(l.reveal.answer)}</div>` : '';
-      status = ansTxt + `<div class="cnt ok">სწორად უპასუხა ${got.length}-მა${got.length && got.length <= 6 ? ': ' + got.map(p => esc(S.players[p].name)).join(', ') : ''}</div>`;
+      status = ansTxt + `<div class="cnt ok">სწორად უპასუხა ${rightIds.length}-მა${got.length && got.length <= 6 ? ' · ქულა: ' + got.map(p => esc(S.players[p].name) + ' +' + fmtPts(S.awarded[l.qid][p])).join(', ') : ''}</div>`;
     }
   }
   return `<div class="scr ${q.img ? 'hasimg' : ''}">${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${tvOptions(q, { phase, corr, votes })}${status}</div>`;
@@ -158,12 +166,12 @@ function renderBoard() {
   cur.forEach((p, i) => { curIdx[p.id] = i; });
   const n = cur.length || 1, rh = Math.min(8.4, 62 / n);
   const y = i => `translateY(calc(var(--v) * ${(rh * i).toFixed(2)}))`;
-  const rows = cur.map(p => `<div class="sbrow ${prevIdx[p.id] === 0 ? 'first' : ''}" data-id="${p.id}" style="height:calc(var(--v) * ${(rh - 1).toFixed(2)});transform:${y(prevIdx[p.id] || 0)}"><span class="pos">${(prevIdx[p.id] || 0) + 1}</span><span class="pic">${av(p.avatar)}</span><span class="nm">${tdot(p.team)}${esc(p.name)}</span><span class="pt">${prevSc[p.id] || 0}</span></div>`).join('');
+  const rows = cur.map(p => `<div class="sbrow ${prevIdx[p.id] === 0 ? 'first' : ''}" data-id="${p.id}" style="height:calc(var(--v) * ${(rh - 1).toFixed(2)});transform:${y(prevIdx[p.id] || 0)}"><span class="pos">${(prevIdx[p.id] || 0) + 1}</span><span class="pic">${av(p.avatar)}</span><span class="nm">${tdot(p.team)}${esc(p.name)}</span><span class="pt">${fmtPts(prevSc[p.id] || 0)}</span><span class="ptl">ქულა</span></div>`).join('');
   app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('board_title', l.qid))}</div><div class="sb" style="height:calc(var(--v) * ${(rh * n).toFixed(2)})">${rows}</div></div>`;
   setTimeout(() => {
     cur.forEach((p, i) => {
       const el = app.querySelector(`.sbrow[data-id="${p.id}"]`); if (!el) return;
-      el.style.transform = y(i); $('.pos', el).textContent = i + 1; $('.pt', el).textContent = p.score;
+      el.style.transform = y(i); $('.pos', el).textContent = i + 1; $('.pt', el).textContent = fmtPts(p.score);
       el.classList.toggle('first', i === 0);
       if (p.score > (prevSc[p.id] || 0)) el.classList.add('gain');
     });
@@ -172,20 +180,19 @@ function renderBoard() {
 
 const LOSER_FALLBACK = 'ბოლო ადგილიც ადგილია!';
 function renderFinal() {
-  const l = S.live, step = l.step || 0;
+  const l = S.live, step = l.step || 0, steps = finalSteps();
   if (finKey !== 'final') {
     finKey = 'final'; boardKey = null; lastHtml = null; lastKey = 'final'; enter();
-    const r = ranking(S.players, S.awarded);
-    const slot = (i, cls, medal) => { const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${p.score} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
-    const last = r[r.length - 1];
+    const r = ranking(S.players, S.awarded), places = steps.filter(x => x[0] === 'p').length;
+    const slot = (i, cls, medal) => { if (i >= places) return ''; const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${fmtPts(p.score)} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
+    const last = steps.includes('loser') ? r[r.length - 1] : null;
     app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
-      (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${last.score} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>';
+      (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${fmtPts(last.score)} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>';
   }
-  const need = { 2: 1, 1: 2, 0: 3 };
-  $$('.pl', app).forEach(el => { const i = Number(el.dataset.i); el.classList.toggle('show', !!el.firstChild && step >= need[i]); });
-  $('#drum').style.display = step >= 1 ? 'none' : '';
-  const lb = $('#loserbox'); if (lb) lb.classList.toggle('show', step >= 4);
-  if (step >= 3 && finKey === 'final' && (renderFinal.conf || 0) !== step) { renderFinal.conf = step; confetti(step >= 4); }
+  const shown = steps.slice(0, step);
+  app.querySelectorAll('.pl').forEach(el => { el.classList.toggle('show', !!el.firstChild && shown.includes('p' + el.dataset.i)); });
+  const d = document.getElementById('drum'); if (d) d.style.display = step >= 1 ? 'none' : '';
+  const lb = document.getElementById('loserbox'); if (lb) lb.classList.toggle('show', shown.includes('loser'));
 }
 function confetti(loser) {
   return; // დეკორაციის გარეშე

@@ -2,7 +2,7 @@
 const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
 const view = $('#view');
 const MAX_SND_MB = 3, MAX_SND_SEC = 30;
-const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
+const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
 const TYPE_NAMES = { buzz: 'ბლიც', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
 const EV_NAME = Object.fromEntries(SOUND_EVENTS);
 const Q_EVENTS = { 1: ['buzz', 'right', 'wrong'], 2: ['reveal', 'scoreboard'] };
@@ -63,6 +63,7 @@ function render(force) {
   renderChrome();
   if (!force) { const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return; }
   if (M.tab === 'quiz') renderQuizTab();
+  else if (M.tab === 'rules') renderRules();
   else if (M.tab === 'images') renderImages();
   else if (M.tab === 'sounds') renderSounds();
   else renderSettings();
@@ -79,6 +80,7 @@ const pic = a => `<span class="pic">${av(a)}</span>`;
 const quizList = game => Object.entries(M.quizzes).filter(([, q]) => q.game === game).sort((a, b) => (a[1].created || 0) - (b[1].created || 0));
 const qOf = qz => Object.entries(M.questions).filter(([, q]) => q.quiz === qz).map(([id, q]) => Object.assign({ id }, q)).sort((a, b) => (a.order || 0) - (b.order || 0));
 const hasSfx = q => q.sfx && Object.keys(q.sfx).length > 0;
+const hasRules = q => q.rules && Object.keys(q.rules).length > 0;
 function qComplete(q) {
   if (!q.text) return false;
   if (q.type === 'single') return arr(q.options).length >= 2 && arr(q.options).every(o => o) && arr(q.correct).length === 1;
@@ -117,7 +119,7 @@ function drawQList() {
   const qs = qOf(M.selQuiz);
   [...M.sel].forEach(id => { if (!qs.some(q => q.id === id)) M.sel.delete(id); });
   setHTML($('#ql-bulk'), M.sel.size ? `<span class="chip">მონიშნულია: <b>${M.sel.size}</b></span><button class="btn" data-a="movesel">${L('arrow-right-left')}გადატანა…</button><button class="btn quiet" data-a="selclear">მოხსნა</button>` : '');
-  setHTML(el, qs.map((x, i) => `<div class="qr ${x.id === M.selQ ? 'on' : ''}" draggable="true" data-a="editq" data-id="${x.id}"><input type="checkbox" class="qsel" data-id="${x.id}" ${M.sel.has(x.id) ? 'checked' : ''} aria-label="მონიშვნა"><span class="grip" data-tip="გადაათრიე">${L('grip-vertical')}</span><span class="qn">${i + 1}</span><div class="qmain"><b>${esc(x.text || '(ცარიელი კითხვა)')}</b>${qComplete(x) ? '' : `<small class="warn">არასრულია</small>`}</div><span class="qic">${x.img ? `<span data-tip="სურათი">${L('image')}</span>` : ''}${x.snd ? `<span data-tip="კლიპი">${L('music')}</span>` : ''}${hasSfx(x) ? `<span data-tip="საკუთარი ხმები">${L('volume-2')}</span>` : ''}</span><span class="tag t-${x.type}">${TYPE_NAMES[x.type] || ''}</span><button class="btn quiet icon" data-a="more" data-id="${x.id}" data-tip="მეტი" aria-label="მეტი">${L('ellipsis')}</button></div>`).join('') || '<div class="empty">ამ ქვიზში კითხვები ჯერ არ არის.</div>');
+  setHTML(el, qs.map((x, i) => `<div class="qr ${x.id === M.selQ ? 'on' : ''}" draggable="true" data-a="editq" data-id="${x.id}"><input type="checkbox" class="qsel" data-id="${x.id}" ${M.sel.has(x.id) ? 'checked' : ''} aria-label="მონიშვნა"><span class="grip" data-tip="გადაათრიე">${L('grip-vertical')}</span><span class="qn">${i + 1}</span><div class="qmain"><b>${esc(x.text || '(ცარიელი კითხვა)')}</b>${qComplete(x) ? '' : `<small class="warn">არასრულია</small>`}</div><span class="qic">${x.img ? `<span data-tip="სურათი">${L('image')}</span>` : ''}${x.snd ? `<span data-tip="კლიპი">${L('music')}</span>` : ''}${hasSfx(x) ? `<span data-tip="საკუთარი ხმები">${L('volume-2')}</span>` : ''}${hasRules(x) ? `<span data-tip="საკუთარი წესები">${L('scale')}</span>` : ''}</span><span class="tag t-${x.type}">${TYPE_NAMES[x.type] || ''}</span><button class="btn quiet icon" data-a="more" data-id="${x.id}" data-tip="მეტი" aria-label="მეტი">${L('ellipsis')}</button></div>`).join('') || '<div class="empty">ამ ქვიზში კითხვები ჯერ არ არის.</div>');
 }
 
 // ── რედაქტორი (მარჯვენა პანელი) ──
@@ -150,9 +152,39 @@ function drawEditor() {
   const sf = c.sfx || {};
   h += `<div class="sect"><h4>${L('volume-2')}ხმები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „ნაგულისხმევი“ — თამაშის საერთო ხმა (ხმები → თამაშის ხმები).</p>` +
     Q_EVENTS[c.game].map(ev => `<div class="evline"><b>${EV_NAME[ev]}</b><select data-qev="${ev}">${sndOptions(sf[ev], `<option value="">ნაგულისხმევი (${esc(sndName((CFG.sounds || {})[ev]))})</option>`)}</select><button class="btn icon" data-a="qevplay" data-id="${ev}" data-tip="მოსმენა">${L('play')}</button><label class="btn icon" data-tip="ახლის ატვირთვა">${L('upload')}<input type="file" data-qevup="${ev}" accept="audio/*" hidden></label></div>`).join('') + '</div>';
+  h += rulesSect(c);
   h += `<div class="sect"><h4>${L('monitor')}ასე გამოჩნდება ტვ-ზე</h4><div class="tvwrap"><div class="tvframe tv" id="tvprev"></div></div><p class="saved" id="e_status">${L('circle-check-big')}შენახულია</p></div>`;
   setHTML(body, h);
   openEditor(); drawPreview();
+}
+// კითხვის საკუთარი წესები („თამაშის წესი“ = არაფერი არ ინახება)
+function qRuleKeys(c) {
+  if (c.game === 1) return ['pts', 'penalty', 'afterWrong'].concat((c.rules || {}).afterWrong === 'all' || (rulesG(1).afterWrong === 'all' && !(c.rules || {}).afterWrong) ? ['sameTeamTwice'] : []);
+  const k = ['award'];
+  if (((c.rules || {}).award || rulesG(2).award) === 'firstN') k.push('awardN');
+  k.push('pts', 'penalty');
+  if (c.type === 'multi') k.push('multi');
+  if (c.type === 'text') k.push('typed');
+  k.push('board');
+  return k;
+}
+const RULE_NAMES = { award: 'ვინ იღებს ქულას', awardN: 'რამდენი პირველი სწორი', pts: 'ქულა სწორ პასუხზე', penalty: 'ქულის დაკლება შეცდომაზე', multi: 'რამდენიმე სწორი პასუხი', typed: 'ჩაწერითი პასუხის შემოწმება', board: 'ქულების ცხრილი კითხვის შემდეგ', afterWrong: 'არასწორი პასუხის შემდეგ', sameTeamTwice: 'იგივე გუნდს ისევ შეუძლია დაჭერა' };
+const NUM_RULES = ['pts', 'penalty', 'awardN'];
+function ruleControl(key, val, def, attr) {
+  if (NUM_RULES.includes(key)) return `<input type="number" ${attr} step="${key === 'awardN' ? 1 : 0.5}" min="0" value="${val === undefined ? '' : esc(val)}" placeholder="${def === undefined ? '' : 'თამაშის წესი: ' + esc(def)}">`;
+  const opts = RULE_OPTS[key] || [];
+  return `<select ${attr}>${def !== undefined ? `<option value="" ${val === undefined ? 'selected' : ''}>თამაშის წესი: ${esc(optLabel(key, def))}</option>` : ''}${opts.map(([v, l]) => `<option value="${v}" ${val !== undefined && String(val) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+}
+function rulesSect(c) {
+  const g = rulesG(c.game), own = c.rules || {};
+  return `<div class="sect"><h4>${L('scale')}წესები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „თამაშის წესი“ (წესები → ${c.game === 1 ? 'თამაში 1' : 'თამაში 2'}).</p>` +
+    qRuleKeys(c).map(k => `<div class="evline" style="grid-template-columns:190px minmax(0,1fr)"><b>${RULE_NAMES[k]}</b>${ruleControl(k, own[k], g[k], `data-qrule="${k}"`)}</div>`).join('') + '</div>';
+}
+function setRule(k, raw) {
+  const r = M.cur.rules = Object.assign({}, M.cur.rules || {});
+  if (raw === '' || raw === undefined) delete r[k];
+  else r[k] = NUM_RULES.includes(k) ? Number(raw) : raw === 'true' ? true : raw === 'false' ? false : raw;
+  scheduleQSave();
 }
 async function drawPreview() {
   const box = $('#tvprev'); if (!box || !M.cur) return;
@@ -173,7 +205,7 @@ function collect() {
   scheduleQSave(); drawPreview();
 }
 function qDoc(c) {
-  const d = { quiz: c.quiz, game: c.game, order: c.order, type: c.type, text: c.text || '', answer: c.answer || '', img: c.img || null, snd: c.snd || null, sfx: c.sfx && Object.keys(c.sfx).length ? c.sfx : null };
+  const d = { quiz: c.quiz, game: c.game, order: c.order, type: c.type, text: c.text || '', answer: c.answer || '', img: c.img || null, snd: c.snd || null, sfx: c.sfx && Object.keys(c.sfx).length ? c.sfx : null, rules: c.rules && Object.keys(c.rules).length ? c.rules : null };
   if (c.type !== 'text' && c.type !== 'buzz') { d.options = arr(c.options); const k = arr(c.correct).map(Number); if (k.length && c.type !== 'poll') d.correct = k; }
   return d;
 }
@@ -185,7 +217,7 @@ function scheduleQSave() {
 function selectQ(id) {
   if (M.selQ && M.selQ !== id) run('q:' + M.selQ);
   M.selQ = id; const q = M.questions[id];
-  M.cur = JSON.parse(JSON.stringify(q)); M.cur.options = arr(M.cur.options); M.cur.correct = arr(M.cur.correct); M.cur.sfx = Object.assign({}, M.cur.sfx || {});
+  M.cur = JSON.parse(JSON.stringify(q)); M.cur.options = arr(M.cur.options); M.cur.correct = arr(M.cur.correct); M.cur.sfx = Object.assign({}, M.cur.sfx || {}); M.cur.rules = Object.assign({}, M.cur.rules || {});
   const n = M.cur.type === 'poll' ? 2 : (M.cur.type === 'text' || M.cur.type === 'buzz' ? 0 : 4);
   while (M.cur.options.length < n) M.cur.options.push('');
   drawEditor(); drawQList();
@@ -219,6 +251,7 @@ function doMove(qzid) {
     else if (q.type === 'buzz') { d.type = 'text'; d.options = null; d.correct = null; }
     else { d.type = q.type; d.options = opts.length ? opts : null; d.correct = corr.length ? corr : null; }
     if (q.sfx && tz.game === q.game) d.sfx = q.sfx; // საკუთარი ხმები რჩება, თუ თამაში იგივეა
+    d.rules = q.rules && tz.game === q.game ? q.rules : null;
     Object.entries(d).forEach(([k, v]) => { u['questions/' + id + '/' + k] = v; });
     if (M.selQ === id) { pending.delete('q:' + id); closeEditor(); }
     M.sel.delete(id);
@@ -381,6 +414,42 @@ async function addSound(file, replaceId) {
   } catch (e) { note(typeof e === 'string' ? e : 'ფაილის ატვირთვა ვერ მოხერხდა.'); return null; }
 }
 
+// ═════════ წესები ═════════
+function renderRules() {
+  const g1 = rulesG(1), g2 = rulesG(2), f = finalRules(), n = teamCount();
+  const line = (label, ctl, hint) => `<div class="evline" style="grid-template-columns:240px minmax(0,1fr)"><b>${label}</b>${ctl}</div>${hint ? `<p class="hint" style="margin:-2px 0 8px 248px">${hint}</p>` : ''}`;
+  const c = (g, k, v) => ruleControl(k, v, undefined, `data-rule="${g}.${k}"`);
+  const sel = (path, cur, opts) => `<select data-rule="${path}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  setHTML(view, `<div class="cols"><div>
+  <div class="panel"><h3>${L('circle-help')}თამაში 2 · ფაცი თუ ფუცი</h3>
+    ${line(RULE_NAMES.award, c('g2', 'award', g2.award))}
+    ${g2.award === 'firstN' ? line(RULE_NAMES.awardN, c('g2', 'awardN', g2.awardN)) : ''}
+    ${line(RULE_NAMES.pts, c('g2', 'pts', g2.pts), 'ნაგულისხმევად 1. კონკრეტულ კითხვას შეგიძლია მეტი ქულა მისცე კითხვის რედაქტორში.')}
+    ${line(RULE_NAMES.penalty, c('g2', 'penalty', g2.penalty), '0 = არაფერი აკლდება.')}
+    ${line(RULE_NAMES.multi, c('g2', 'multi', g2.multi))}
+    ${line(RULE_NAMES.typed, c('g2', 'typed', g2.typed), 'ავტომატურისას წამყვანს მაინც შეუძლია შეასწოროს. რამდენიმე სწორი პასუხი გამოყავი „/“-ით.')}
+    ${line(RULE_NAMES.board, c('g2', 'board', g2.board))}
+  </div>
+  <div class="panel"><h3>${L('flag')}ფინალი</h3>
+    ${line('რამდენი ადგილი გამოცხადდეს', sel('final.places', f.places, [[1, '1 (მხოლოდ გამარჯვებული)'], [2, '2'], [3, '3']]))}
+    ${line('ბოლო ადგილის გამოცხადება', sel('final.loser', f.loser !== false, [[true, 'კი'], [false, 'არა']]))}
+  </div></div>
+  <div><div class="panel"><h3>${L('zap')}თამაში 1 · ბლიცი</h3>
+    ${line('როგორ თამაშობენ', sel('g1.teamsOn', g1.teamsOn !== false, [[true, 'გუნდებად'], [false, 'ყველა თავისთვის']]))}
+    ${g1.teamsOn !== false ? line('გუნდების რაოდენობა', sel('g1.teamCount', n, [[2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']])) : ''}
+    ${g1.teamsOn !== false ? `<div style="margin:4px 0 12px 248px">${Array.from({ length: n }, (_, i) => `<div class="row" style="margin:6px 0"><span style="width:22px;height:22px;border-radius:50%;background:${TEAM_COLORS[i]};box-shadow:inset 0 0 0 1.5px var(--pink-l);flex:none"></span><input type="text" class="grow" data-tname="${i}" value="${esc(teamName(M.teams, i))}" maxlength="24" aria-label="გუნდის სახელი"></div>`).join('')}</div>` : ''}
+    ${line(RULE_NAMES.pts, c('g1', 'pts', g1.pts))}
+    ${line(RULE_NAMES.penalty, c('g1', 'penalty', g1.penalty))}
+    ${line(RULE_NAMES.afterWrong, c('g1', 'afterWrong', g1.afterWrong))}
+    ${g1.afterWrong === 'all' ? line(RULE_NAMES.sameTeamTwice, c('g1', 'sameTeamTwice', g1.sameTeamTwice), '„არა“ — ვინც შეცდა, ჯერ სხვამ უნდა სცადოს.') : ''}
+  </div><p class="hint">ცვლილებები მაშინვე ინახება. წამყვანის გვერდზე თითო კითხვასთან ჩანს მოქმედი წესები.</p></div></div>`);
+}
+function saveRule(path, raw) {
+  const [g, k] = path.split('.');
+  const v = ['pts', 'penalty', 'awardN', 'places', 'teamCount'].includes(k) ? Math.max(0, Number(raw) || 0) : raw === 'true' ? true : raw === 'false' ? false : raw;
+  return db.ref('config/rules/' + g + '/' + k).set(v);
+}
+
 // ═════════ სურათები ═════════
 function renderImages() {
   const l = Object.entries(M.images).sort((a, b) => (b[1].created || 0) - (a[1].created || 0));
@@ -403,7 +472,7 @@ function renderSounds() {
 // ═════════ პარამეტრები ═════════
 function renderSettings() {
   setHTML(view, `<div class="cols"><div><div class="panel"><h3>${L('type')}თამაშის სახელი</h3><input type="text" id="s_name" value="${esc(gameName())}" maxlength="30"><p class="hint">ჩანს ლოგოში ტელეფონზე და ტვ-ზე.</p></div>
-  <div class="panel"><h3>${L('users')}გუნდების სახელები</h3>${[0, 1, 2, 3].map(i => `<div class="row" style="margin:8px 0"><span style="width:26px;height:26px;border-radius:50%;background:${TEAM_COLORS[i]};flex:none"></span><input type="text" class="grow" data-tname="${i}" value="${esc(teamName(M.teams, i))}" maxlength="24"></div>`).join('')}</div>
+  <div class="panel"><h3>${L('users')}გუნდები</h3><p class="hint">გუნდების რაოდენობა და სახელები ახლა „წესები“-შია.</p><button class="btn" data-sec="rules">${L('scale')}წესებზე გადასვლა</button></div>
   <div class="panel"><h3>${L('lock')}წამყვანის და ადმინის PIN</h3><div class="row"><input type="text" id="s_pin" class="grow" value="${esc(CFG.pin || DEFAULT_PIN)}" maxlength="12"><button class="btn primary" data-a="savepin">${L('check')}შენახვა</button></div><p class="hint">PIN მსუბუქი დაცვაა, რეპოზიტორია საჯაროა.</p></div></div>
   <div class="panel"><h3>${L('message-circle')}სასაცილო ტექსტები</h3><p class="hint">თითო ხაზი = ერთი ვარიანტი, თამაში შემთხვევით ირჩევს. ბოლო ადგილის ტექსტში {name} ჩაანაცვლებს სახელს.</p>${TEXT_KEYS.map(([k, label]) => `<label class="f">${label}</label><textarea data-text="${k}" rows="${Math.min(7, textList(k).length + 1)}">${esc(textList(k).join('\n'))}</textarea><button class="btn quiet" data-a="resettext" data-id="${k}" style="margin-top:6px">${L('rotate-ccw')}ნაგულისხმევზე დაბრუნება</button>`).join('')}</div></div>`);
 }
@@ -425,6 +494,8 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'ql-name') queueSave('qzname', () => db.ref('quizzes/' + M.selQuiz + '/name').set(t.value || 'ქვიზი'));
   else if (t.id === 'e_text' || t.classList.contains('e_opt') || t.id === 'e_ans') collect();
+  else if (t.dataset.qrule && t.type === 'number') setRule(t.dataset.qrule, t.value);
+  else if (t.dataset.rule && t.type === 'number') queueSave('r:' + t.dataset.rule, () => saveRule(t.dataset.rule, t.value));
   else if (t.dataset.imgname) queueSave('in' + t.dataset.imgname, () => db.ref('library/images/' + t.dataset.imgname + '/name').set(t.value));
   else if (t.dataset.sndname) queueSave('sn' + t.dataset.sndname, () => db.ref('library/sounds/' + t.dataset.sndname + '/name').set(t.value));
   else if (t.id === 's_name') queueSave('gname', () => db.ref('config/gameName').set(t.value.trim() || null));
@@ -440,6 +511,8 @@ document.addEventListener('change', async e => {
   if (t.id === 'e_type') { collect(); const c = M.cur; c.type = t.value; const n = t.value === 'poll' ? 2 : (t.value === 'text' ? 0 : 4); const o = arr(c.options).slice(0, n); while (o.length < n) o.push(''); c.options = o; c.correct = []; scheduleQSave(); drawEditor(); drawQListSoon(); }
   else if (t.id === 'e_snd') { setField('snd', t.value); drawQListSoon(); }
   else if (t.dataset.qev) setSfx(t.dataset.qev, t.value);
+  else if (t.dataset.qrule) { setRule(t.dataset.qrule, t.value); if (t.tagName === 'SELECT') { drawEditor(); drawQListSoon(); } }
+  else if (t.dataset.rule) { queueSave('r:' + t.dataset.rule, () => saveRule(t.dataset.rule, t.value).then(() => { if (t.tagName === 'SELECT') render(true); }), 0); }
   else if (t.classList && t.classList.contains('e_cor')) collect();
   else if (t.id === 'e_img_up' && t.files[0]) { const id = await addImage(t.files[0]); if (id) { setField('img', id); drawQListSoon(); } }
   else if (t.id === 'e_snd_up' && t.files[0]) { const id = await addSound(t.files[0]); if (id) { setField('snd', id); drawQListSoon(); } }
