@@ -91,7 +91,7 @@ function view(html, key) {
 const imgPh = id => `<div class="qimg-ph" data-id="${esc(id)}"></div>`;
 const tmStyle = i => `background:${TEAM_COLORS[i]};color:${TEAM_TEXT[i]}`;
 function teamsStrip(big, wrong) {
-  return `<div class="teams ${big ? 'big' : ''} stag">${[0, 1, 2, 3].map(i => `<div class="tm ${wrong && wrong[i] ? 'out' : ''}" style="--t:${TEAM_HUES[i]}"><div class="n">${tdot(i)}${esc(teamName(S.teams, i))}</div><div class="s">${teamScore(S.teams, i)}</div></div>`).join('')}</div>`;
+  return `<div class="teams ${big ? 'big' : ''} stag">${[0, 1, 2, 3].map(i => `<div class="tm ${wrong && wrong[i] ? 'out' : ''}" ><div class="n">${ttag(i, teamName(S.teams, i))}</div><div class="s">${teamScore(S.teams, i)}</div></div>`).join('')}</div>`;
 }
 function joinInfo() { return location.href.replace(/tv\.html.*$/, '').replace(/^https?:\/\//, ''); }
 
@@ -117,7 +117,7 @@ function g1() {
   let over = '';
   const b = l.buzz;
   if (b) {
-    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div><div class="tn rise" style="background:${TEAM_HUES[b.team]};color:#121016;border-color:transparent">${esc(teamName(S.teams, b.team))}</div>${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
+    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div><div class="tn rise" style="background:${TEAM_HUES[b.team]}">${esc(teamName(S.teams, b.team))}</div>${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
   }
   const ansBox = (!b && l.reveal) ? `<div class="ansbox pop">${esc(l.reveal.answer)}</div>` : '';
   return `<div class="scr ${q.img ? 'hasimg' : ''}">${over}${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${q.snd ? `<div class="sub">${ico('music')} გამოიცანი სიმღერა!</div>` : ''}${ansBox}<div style="flex:${q.img ? 0 : 1}"></div>${teamsStrip(false, l.wrongTeams)}</div>`;

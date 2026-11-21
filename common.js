@@ -21,11 +21,12 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const arr = v => Array.isArray(v) ? v.filter(x => x != null) : Object.values(v || {});
 
 // ფერები: მუქი ფონი, ერთი ვარდისფერი აქცენტი (CSS-ში)
-const TEAM_COLORS = ['#1b1820', '#1b1820', '#1b1820', '#1b1820'];
-const TEAM_TEXT = ['#f3f0f4', '#f3f0f4', '#f3f0f4', '#f3f0f4'];
-const OPT_COLORS = ['#1b1820', '#1b1820', '#1b1820', '#1b1820', '#1b1820', '#1b1820'];
-// გუნდების მუდმივი, მქრქალი ფერები (მხოლოდ წერტილი ან თხელი ზოლი)
-const TEAM_HUES = ['#c9748f', '#7fa68a', '#d1a43a', '#6f93b3'];
+const TEAM_COLORS = ['#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA'];
+const TEAM_TEXT = ['#3A0F2A', '#3A0F2A', '#3A0F2A', '#3A0F2A'];
+const OPT_COLORS = ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'];
+// გუნდების ფერები: სახელის ტეგის ფონი
+const TEAM_HUES = ['#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA'];
+const ttag = (i, name) => `<span class="ttag" style="--t:${TEAM_HUES[i] || '#F9C9D8'}">${esc(name)}</span>`;
 const tdot = i => `<i class="tdot" style="--t:${TEAM_HUES[i] || '#888'}"></i>`;
 // თეთრი ხაზოვანი ხატულები (ემოჯის ნაცვლად)
 const ICONS = {
@@ -87,7 +88,7 @@ function pickText(key, seed, name) {
 // ლოგო: სუფთა წარწერა + ერთი ვარდისფერი კითხვის ნიშანი
 function logoHtml(name) {
   name = name || gameName();
-  return `<div class="logo"><span class="word">${esc(name)}</span><span class="q">?</span></div>`;
+  return `<div class="logo"><span class="word">${esc(name)}</span><span class="qm">?!</span></div>`;
 }
 
 // ───────── ქულები ─────────

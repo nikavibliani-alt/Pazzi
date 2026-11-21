@@ -95,12 +95,12 @@ function g1Panel() {
   if (q) {
     const b = l.buzz;
     cur = `<div class="panel"><h3>ახლა</h3><div style="font-size:24px;font-weight:800">${esc(q.text)}</div><div class="ans">პასუხი: <b>${esc(q.answer)}</b></div>
-    <div class="bigbuzz" style="${b ? `border-left:6px solid ${TEAM_HUES[b.team]}` : ''}">${b ? `${pic(b.avatar)}<span><b>${esc(b.name)}</b> · ${tdot(b.team)}${esc(teamName(S.teams, b.team))}${l.phase === 'right' ? ' · სწორია' : ''}</span>` : (l.phase === 'open' ? 'ველოდებით, ვინ დააჭერს…' : '')}</div>
+    <div class="bigbuzz" style="${b ? `background:${TEAM_HUES[b.team]}` : ''}">${b ? `${pic(b.avatar)}<span><b>${esc(b.name)}</b> · ${esc(teamName(S.teams, b.team))}${l.phase === 'right' ? ' · სწორია' : ''}</span>` : (l.phase === 'open' ? 'ველოდებით, ვინ დააჭერს…' : '')}</div>
     <div class="acts"><button class="btn mint lg" data-act="right" ${l.phase === 'buzzed' ? '' : 'disabled'}>${ico('check')} სწორია (+1)</button><button class="btn danger lg" data-act="wrong" ${l.phase === 'buzzed' ? '' : 'disabled'}>${ico('cross')} არასწორია</button></div>
     <div class="acts"><button class="btn lemon" data-act="g1next">შემდეგი კითხვა →</button><button class="btn sm" data-act="showans">პასუხი ტვ-ზე</button></div>
     ${q.snd ? audioBtns() : ''}</div>`;
   } else cur = '<div class="panel"><p>აირჩიე კითხვა მარცხნიდან „აჩვენე“-თი.</p></div>';
-  const teams = [0, 1, 2, 3].map(i => `<div class="scorepick"><div class="tn">${tdot(i)}${esc(teamName(S.teams, i))}: <b>${teamScore(S.teams, i)}</b></div><button class="btn sm" data-act="tscore" data-id="${i}" data-d="-1">−1</button><button class="btn sm mint" data-act="tscore" data-id="${i}" data-d="1">+1</button></div>`).join('');
+  const teams = [0, 1, 2, 3].map(i => `<div class="scorepick"><div class="tn">${ttag(i, teamName(S.teams, i))} &nbsp; <b>${teamScore(S.teams, i)}</b></div><button class="btn sm" data-act="tscore" data-id="${i}" data-d="-1">−1</button><button class="btn sm mint" data-act="tscore" data-id="${i}" data-d="1">+1</button></div>`).join('');
   return `<div class="cols"><div class="panel"><h3>${esc(quizName(1) || '')} · კითხვები</h3>${list}</div><div>${cur}<div class="panel"><h3>ქულების ხელით შეცვლა</h3>${teams}</div></div></div>`;
 }
 function audioBtns() { return `<div class="acts"><button class="btn sky" data-act="audio" data-id="play">${ico('play')} ხმის დაკვრა</button><button class="btn" data-act="audio" data-id="stop">${ico('stop')} გაჩერება</button></div>`; }
@@ -151,7 +151,7 @@ function finalPanel() {
 // ───────── მოთამაშეები ─────────
 function renderPlayers() {
   const pl = Object.entries(S.players), sc = scoreMap(S.awarded);
-  view.innerHTML = `<div class="cols"><div class="panel"><h3>მოთამაშეები (${pl.length})</h3>${pl.map(([id, p]) => `<div class="prow">${pic(p.avatar)}<span class="nm">${esc(p.name)}</span><span>${sc[id] || 0} ქულა</span>${tdot(p.team)}<select data-team="${id}">${[0, 1, 2, 3].map(i => `<option value="${i}" ${p.team === i ? 'selected' : ''}>${esc(teamName(S.teams, i))}</option>`).join('')}</select><button class="btn sm danger" data-act="kick" data-id="${id}">წაშლა</button></div>`).join('') || '<p>ჯერ არავინ შემოსულა.</p>'}</div>
+  view.innerHTML = `<div class="cols"><div class="panel"><h3>მოთამაშეები (${pl.length})</h3>${pl.map(([id, p]) => `<div class="prow">${pic(p.avatar)}<span class="nm">${esc(p.name)}</span><span>${sc[id] || 0} ქულა</span>${ttag(p.team, teamName(S.teams, p.team))}<select data-team="${id}">${[0, 1, 2, 3].map(i => `<option value="${i}" ${p.team === i ? 'selected' : ''}>${esc(teamName(S.teams, i))}</option>`).join('')}</select><button class="btn sm danger" data-act="kick" data-id="${id}">წაშლა</button></div>`).join('') || '<p>ჯერ არავინ შემოსულა.</p>'}</div>
   <div class="panel"><h3>ახალი თამაში</h3><p>წაშლის ყველა მოთამაშეს, ქულას და პასუხს, ახალ კოდს შექმნის. კითხვები და პარამეტრები დარჩება.</p><button class="btn danger" data-act="reset">ყველაფრის განულება</button></div></div>`;
 }
 

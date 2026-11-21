@@ -110,7 +110,7 @@ function render() {
   const myScore = scoreMap(S.awarded)[S.pid] || 0;
   const t = m.team;
   let score = myScore, sub = '';
-  sub = `<small>${tdot(t)}${esc(teamName(S.teams, t))}</small>`;
+  sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`;
   if (mode === 'g1') score = teamScore(S.teams, t);
   const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${mode === 'g1' ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${score}</div>` : '';
   const top = `<div class="top" style="--t:${TEAM_HUES[t]}"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
