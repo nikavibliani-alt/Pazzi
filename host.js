@@ -310,10 +310,10 @@ async function rejoinCode(id, fresh) {
     await db.ref().update(u);
   }
   const url = location.href.replace(/host\.html.*$/, '') + 'index.html?code=' + encodeURIComponent(S.session ? S.session.code : '') + '&r=' + code + (NS ? '&ns=' + encodeURIComponent(NS) : '');
-  const pr = popup({ title: `${p.name} — დაბრუნება`, text: 'მოთამაშემ გახსნას თამაში ნებისმიერ ტელეფონზე (ან დაასკანეროს QR), დააჭიროს „უკვე ვთამაშობდი“ და ჩაწეროს ეს კოდი.', html: `<div class="rjcode">${code}</div><div id="qrbox" class="qrbox"></div><input type="hidden" name="act" value="ok">`, ok: 'კარგი', cancel: 'ახალი კოდი' });
+  const pr = popup({ title: `${p.name} — დაბრუნება`, text: 'მოთამაშემ გახსნას თამაში ნებისმიერ ტელეფონზე (ან დაასკანეროს QR), დააჭიროს „უკვე ვთამაშობდი“ და ჩაწეროს ეს კოდი.', html: `<div class="rjcode">${code}</div><div id="qrbox" class="qrbox"></div><input type="hidden" name="act" value="ok">`, ok: 'კარგი', cancel: false, extra: { label: 'ახალი კოდი', value: 'new' } });
   try { new QRCode(document.getElementById('qrbox'), { text: url, width: 180, height: 180, colorDark: '#3A0F2A', colorLight: '#ffffff' }); } catch (e) {}
   const v = await pr;
-  if (!v) rejoinCode(id, true);
+  if (v === 'new') rejoinCode(id, true); // მხოლოდ „ახალი კოდი“ ქმნის ახალს; დახურვა (Esc, გარეთ დაჭერა, „კარგი“) — არა
 }
 async function renamePlayer(id) {
   const p = S.players[id]; if (!p) return;

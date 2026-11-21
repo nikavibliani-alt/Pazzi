@@ -9,14 +9,14 @@ function popup(o) {
   return new Promise(res => {
     const old = document.getElementById('pop'); if (old) old.remove();
     const d = document.createElement('div'); d.className = 'pop-back'; d.id = 'pop';
-    d.innerHTML = `<div class="pop-card" role="dialog" aria-modal="true">${o.title ? `<h4>${esc(o.title)}</h4>` : ''}${o.text ? `<p>${esc(o.text)}</p>` : ''}${o.html || ''}<div class="pop-acts">${o.cancel === false ? '' : `<button class="btn quiet" data-pop="no">${esc(o.cancel || 'გაუქმება')}</button>`}<button class="btn ${o.danger ? 'danger' : 'primary'}" data-pop="ok">${esc(o.ok || 'კარგი')}</button></div></div>`;
+    d.innerHTML = `<div class="pop-card" role="dialog" aria-modal="true">${o.title ? `<h4>${esc(o.title)}</h4>` : ''}${o.text ? `<p>${esc(o.text)}</p>` : ''}${o.html || ''}<div class="pop-acts">${o.extra ? `<button class="btn quiet" data-pop="x:${esc(o.extra.value)}" style="margin-right:auto">${esc(o.extra.label)}</button>` : ''}${o.cancel === false ? '' : `<button class="btn quiet" data-pop="no">${esc(o.cancel || 'გაუქმება')}</button>`}<button class="btn ${o.danger ? 'danger' : 'primary'}" data-pop="ok">${esc(o.ok || 'კარგი')}</button></div></div>`;
     const done = v => {
       let out = v;
-      if (v && o.html) { out = {}; d.querySelectorAll('[name]').forEach(el => { out[el.name] = el.value; }); }
+      if (v === true && o.html) { out = {}; d.querySelectorAll('[name]').forEach(el => { out[el.name] = el.value; }); }
       document.removeEventListener('keydown', key, true); d.remove(); res(out);
     };
     const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); } };
-    d.addEventListener('click', e => { const b = e.target.closest('[data-pop]'); if (b) done(b.dataset.pop === 'ok'); else if (e.target === d) done(false); });
+    d.addEventListener('click', e => { const b = e.target.closest('[data-pop]'); if (b) done(b.dataset.pop === 'ok' ? true : b.dataset.pop.startsWith('x:') ? b.dataset.pop.slice(2) : false); else if (e.target === d) done(false); });
     document.addEventListener('keydown', key, true);
     document.body.appendChild(d);
     setTimeout(() => { const f = d.querySelector('input, select') || d.querySelector('[data-pop=ok]'); if (f) { f.focus(); if (f.select) f.select(); } }, 0);
