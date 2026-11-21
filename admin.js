@@ -1,5 +1,5 @@
 // ფაციფუცობანა — ადმინის გვერდი: ქვიზები, კითხვები, სურათები, ხმები, პარამეტრები
-const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, teams: {}, selQuiz: null, selQ: null, cur: null, loaded: {}, imgData: {} };
+const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
 const view = $('#view');
 const MAX_SND_MB = 3, MAX_SND_SEC = 30;
 $('#gateLogo').innerHTML = logoHtml(); $('#topLogo').innerHTML = logoHtml();
@@ -104,7 +104,9 @@ function drawQHead(listOnly) {
 function drawQList() {
   const el = $('#ql-list'); if (!el) return;
   const qs = qOf(M.selQuiz);
-  el.innerHTML = qs.map((x, i) => `<div class="qrow ${x.id === M.selQ ? 'cur' : ''} ${qComplete(x) ? '' : 'warn'}" draggable="true" data-id="${x.id}"><span class="grip">⠿</span><span class="no">${i + 1}</span><div class="tx" data-a="editq" data-id="${x.id}" style="cursor:pointer"><b>${esc(x.text || '(ცარიელი კითხვა)')} ${x.img ? ico('image') : ''}${x.snd ? ico('music') : ''}</b><small>${TYPE_NAMES[x.type] || ''}${qComplete(x) ? '' : ' · არასრულია'}</small></div><button class="btn sm" data-a="up" data-id="${x.id}" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn sm" data-a="down" data-id="${x.id}" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button><button class="btn sm danger" data-a="delq" data-id="${x.id}">${ico('cross')}</button></div>`).join('') || '<p class="hint">ამ ქვიზში კითხვები ჯერ არ არის.</p>';
+  [...M.sel].forEach(id => { if (!qs.some(q => q.id === id)) M.sel.delete(id); });
+  const bulk = M.sel.size ? `<div class="row2" style="margin:0 0 10px"><span class="statusbar" style="margin:0">მონიშნულია: ${M.sel.size}</span><button class="btn sm primary" data-a="movesel">გადატანა…</button><button class="btn sm" data-a="selclear">მონიშვნის მოხსნა</button></div>` : '';
+  el.innerHTML = bulk + qs.map((x, i) => `<div class="qrow ${x.id === M.selQ ? 'cur' : ''} ${qComplete(x) ? '' : 'warn'}" draggable="true" data-id="${x.id}"><input type="checkbox" class="qsel" data-id="${x.id}" ${M.sel.has(x.id) ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink);flex:none"><span class="grip">⠿</span><span class="no">${i + 1}</span><div class="tx" data-a="editq" data-id="${x.id}" style="cursor:pointer"><b>${esc(x.text || '(ცარიელი კითხვა)')} ${x.img ? ico('image') : ''}${x.snd ? ico('music') : ''}</b><small>${TYPE_NAMES[x.type] || ''}${qComplete(x) ? '' : ' · არასრულია'}</small></div><button class="btn sm" data-a="moveone" data-id="${x.id}">გადატანა…</button><button class="btn sm" data-a="up" data-id="${x.id}" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn sm" data-a="down" data-id="${x.id}" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button><button class="btn sm danger" data-a="delq" data-id="${x.id}">${ico('cross')}</button></div>`).join('') || '<p class="hint">ამ ქვიზში კითხვები ჯერ არ არის.</p>';
 }
 
 // ── რედაქტორი ──
@@ -224,6 +226,11 @@ const ACT = {
   useimg(id) { $('#modal').remove(); setField('img', id); },
   rmimg() { setField('img', null); },
   playsnd(id) { togglePlay(id); },
+  // კითხვების გადატანა სხვა ქვიზში
+  moveone(id) { M.moveIds = [id]; moveModal(); },
+  movesel() { M.moveIds = qOf(M.selQuiz).map(q => q.id).filter(id => M.sel.has(id)); if (M.moveIds.length) moveModal(); },
+  selclear() { M.sel.clear(); drawQList(); },
+  moveto(qzid) { doMove(qzid); },
   // სურათები
   delimg(id) {
     const used = Object.values(M.questions).filter(q => q.img === id).length;
@@ -253,6 +260,38 @@ const ACT = {
     db.ref('config/pin').set(v).then(() => { try { sessionStorage.setItem('pz_auth', v); } catch (e) {} toast('PIN შეიცვალა. ახალი PIN: ' + v); });
   }
 };
+function moveModal() {
+  const n = M.moveIds.length;
+  const grp = (g, title) => `<h3 style="margin:14px 0 6px;color:var(--muted);font-size:14px">${title}</h3>` + quizList(g).filter(([id]) => id !== M.selQuiz).map(([id, q]) => `<button class="btn block" style="justify-content:space-between;margin:6px 0" data-a="moveto" data-id="${id}"><span>${esc(q.name)}</span><span class="muted">${qOf(id).length} კითხვა</span></button>`).join('');
+  const body = grp(1, 'თამაში 1 · ბლიცი (ხმამაღლა კითხვა)') + grp(2, 'თამაში 2 · ფაცი თუ ფუცი');
+  openModal(`<h3 class="head" style="margin-bottom:4px">გადატანა: ${n} კითხვა</h3><p class="hint">კითხვა ქვიზის ბოლოში მოხვდება, მერე გადაათრიე სასურველ ადგილას.${M.moveIds.some(id => M.questions[id] && M.questions[id].game === 2) ? ' თამაში 1-ში გადატანისას სწორი პასუხი წამყვანს პასუხად გამოუჩნდება.' : ''}</p>${body}`);
+}
+function doMove(qzid) {
+  const tz = M.quizzes[qzid]; if (!tz) return;
+  let order = qOf(qzid).reduce((m, q) => Math.max(m, q.order || 0), 0);
+  const u = {};
+  M.moveIds.forEach(id => {
+    const q = M.questions[id]; if (!q) return;
+    order += 10;
+    const d = { quiz: qzid, game: tz.game, order, text: q.text || '', answer: q.answer || '', img: q.img || null, snd: q.snd || null };
+    const opts = arr(q.options), corr = arr(q.correct).map(Number);
+    if (tz.game === 1) {            // ბლიცი: ტექსტი + წამყვანისთვის პასუხი
+      d.type = 'buzz';
+      if (!d.answer && corr.length) d.answer = corr.map(i => opts[i]).filter(Boolean).join(' / ');
+    } else if (q.type === 'buzz') { // ბლიციდან თამაში 2-ში: ჩაწერითი კითხვა
+      d.type = 'text';
+    } else {
+      d.type = q.type; if (opts.length) d.options = opts; if (corr.length) d.correct = corr;
+    }
+    Object.entries(d).forEach(([k, v]) => { u['questions/' + id + '/' + k] = v; });
+    if (tz.game === 1 || q.type === 'buzz') { u['questions/' + id + '/options'] = d.options || null; u['questions/' + id + '/correct'] = d.correct || null; }
+    if (M.selQ === id) { pending.delete('q:' + id); M.selQ = null; M.cur = null; }
+    M.sel.delete(id);
+  });
+  const n = M.moveIds.length; M.moveIds = [];
+  const m = $('#modal'); if (m) m.remove();
+  db.ref().update(u).then(() => { toast(`${n} კითხვა გადავიდა: ${tz.name}`); drawEditor(); drawQList(); });
+}
 function moveQ(id, d) {
   const qs = qOf(M.selQuiz), i = qs.findIndex(x => x.id === id), j = i + d;
   if (j < 0 || j >= qs.length) return;
@@ -342,7 +381,7 @@ function renderSettings() {
 // ───────── ღონისძიებები ─────────
 document.addEventListener('click', e => {
   const q = e.target.closest('[data-qz]');
-  if (q && !e.target.closest('[data-a]')) { M.selQuiz = q.dataset.qz; M.selQ = null; M.cur = null; return renderQuizTab(); }
+  if (q && !e.target.closest('[data-a]')) { M.selQuiz = q.dataset.qz; M.selQ = null; M.cur = null; M.sel.clear(); return renderQuizTab(); }
   const b = e.target.closest('[data-a]');
   if (b && !b.disabled && ACT[b.dataset.a]) ACT[b.dataset.a](b.dataset.id, b);
 });
@@ -361,6 +400,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', async e => {
   const t = e.target;
+  if (t.classList && t.classList.contains('qsel')) { t.checked ? M.sel.add(t.dataset.id) : M.sel.delete(t.dataset.id); drawQList(); return; }
   if (t.id === 'e_type') { collect(); const c = M.cur; c.type = t.value; const n = t.value === 'poll' ? 2 : (t.value === 'text' ? 0 : 4); const o = arr(c.options).slice(0, n); while (o.length < n) o.push(''); c.options = o; c.correct = []; scheduleQSave(); drawEditor(); }
   else if (t.id === 'e_snd') setField('snd', t.value);
   else if (t.closest && t.closest('#edform') && (t.type === 'checkbox' || t.type === 'radio')) collect();
