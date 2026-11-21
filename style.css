@@ -186,7 +186,7 @@ body.tv #app { height: 100vh; overflow: hidden; }
 .tv .tm .s { font-family: var(--head); font-weight: 800; font-size: calc(var(--u) * 4.4); line-height: 1.1; }
 .tv .teams.big .tm .n { font-size: calc(var(--u) * 3); } .tv .teams.big .tm .s { font-size: calc(var(--u) * 11); }
 .tv .tm.out { opacity: .35; }
-.tv .tm.out::after { content: '✖'; position: absolute; top: calc(var(--u) * .6); right: calc(var(--u) * 1); font-size: calc(var(--u) * 2); color: var(--bad); }
+.tv .tm.out::after { content: ''; position: absolute; top: calc(var(--u) * .8); right: calc(var(--u) * 1); width: calc(var(--u) * 2); height: calc(var(--u) * 2); background: var(--bad); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center/contain no-repeat; }
 .tv .q { background: transparent; border: 0; border-radius: 0; padding: 0 calc(var(--u) * 4); text-align: center; font-family: var(--head); font-size: calc(var(--u) * 4.6); font-weight: 700; line-height: 1.22; margin: auto 0; }
 .tv .imgbox { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; }
 .tv .qimg { max-width: 100%; max-height: 100%; border-radius: calc(var(--u) * .8); object-fit: contain; background: var(--card); }
@@ -197,7 +197,7 @@ body.tv #app { height: 100vh; overflow: hidden; }
 .tv .op.dim { opacity: .25; }
 .tv .op.good { border-color: var(--pink); background: var(--pink-l); }
 .tv .op.good .lt { background: var(--pink); border-color: var(--pink); color: #fff; }
-.tv .op.good::after { content: '✔'; position: absolute; right: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.8); color: var(--pink); z-index: 1; }
+.tv .op.good::after { content: ''; position: absolute; right: calc(var(--u) * 1.6); width: calc(var(--u) * 2.8); height: calc(var(--u) * 2.8); background: var(--pink); z-index: 1; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/contain no-repeat; }
 .tv .op .ct { margin-left: auto; font-family: var(--head); font-weight: 700; font-size: calc(var(--u) * 3); position: relative; z-index: 1; }
 .tv .op .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pink-l); transform-origin: left; animation: fillx .5s ease-out both; }
 .tv .cnt { align-self: center; font-size: calc(var(--u) * 2.4); font-weight: 500; color: var(--muted); }
@@ -241,3 +241,14 @@ body.tv #app { height: 100vh; overflow: hidden; }
 #sound { position: fixed; inset: 0; z-index: 99; background: var(--bg); display: flex; justify-content: center; align-items: center; flex-direction: column; gap: calc(var(--v) * 6); }
 #sound .logo { font-size: calc(var(--u) * 7); }
 #sound .btn { font-size: calc(var(--u) * 2.4); padding: calc(var(--v) * 2) calc(var(--u) * 3.4); border-radius: calc(var(--u) * 1); background: var(--pink); border-color: var(--pink); color: #fff; }
+
+.ic { width: 1em; height: 1em; vertical-align: -.14em; flex: none; margin-right: .35em; }
+.btn .ic:only-child, button .ic:only-child { margin: 0; }
+.tdot { display: inline-block; width: .5em; height: .5em; border-radius: 50%; background: var(--t); margin-right: .5em; vertical-align: .08em; flex: none; }
+.phone .top { border-left: 5px solid var(--t, var(--line)); }
+.tv .tm { border-top: calc(var(--u) * .4) solid var(--t); }
+.tv .tm .tdot { width: .45em; height: .45em; }
+.tv .buzzcard .tn { font-size: calc(var(--u) * 3.4); font-weight: 700; padding: calc(var(--v) * 1) calc(var(--u) * 3.4); }
+.tv .sbrow .tdot { width: .4em; height: .4em; }
+.tv .sub .ic, .tv .cnt .ic { margin-right: .25em; }
+#sound .btn .ic { width: 1.1em; height: 1.1em; }

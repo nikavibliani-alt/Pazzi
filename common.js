@@ -24,6 +24,23 @@ const arr = v => Array.isArray(v) ? v.filter(x => x != null) : Object.values(v |
 const TEAM_COLORS = ['#1b1820', '#1b1820', '#1b1820', '#1b1820'];
 const TEAM_TEXT = ['#f3f0f4', '#f3f0f4', '#f3f0f4', '#f3f0f4'];
 const OPT_COLORS = ['#1b1820', '#1b1820', '#1b1820', '#1b1820', '#1b1820', '#1b1820'];
+// გუნდების მუდმივი, მქრქალი ფერები (მხოლოდ წერტილი ან თხელი ზოლი)
+const TEAM_HUES = ['#c9748f', '#7fa68a', '#d1a43a', '#6f93b3'];
+const tdot = i => `<i class="tdot" style="--t:${TEAM_HUES[i] || '#888'}"></i>`;
+// თეთრი ხაზოვანი ხატულები (ემოჯის ნაცვლად)
+const ICONS = {
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  sound: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  cross: '<path d="M6 6l12 12M18 6L6 18"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  play: '<path d="M8 5v14l11-7z"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
+  image: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
+  drum: '<ellipse cx="12" cy="8" rx="8" ry="3"/><path d="M4 8v8c0 1.7 3.6 3 8 3s8-1.3 8-3V8M9 4L6 1M15 4l3-3"/>'
+};
+const ico = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
 const LETTERS = ['ა', 'ბ', 'გ', 'დ', 'ე', 'ვ'];
 const DEFAULT_GAME_NAME = 'ფაციფუცობანა';
 const DEFAULT_PIN = '5813';

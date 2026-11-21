@@ -110,9 +110,10 @@ function render() {
   const myScore = scoreMap(S.awarded)[S.pid] || 0;
   const t = m.team;
   let score = myScore, sub = '';
-  if (mode === 'g1') { score = teamScore(S.teams, t); sub = `<small>${esc(teamName(S.teams, t))}</small>`; }
+  sub = `<small>${tdot(t)}${esc(teamName(S.teams, t))}</small>`;
+  if (mode === 'g1') score = teamScore(S.teams, t);
   const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${mode === 'g1' ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${score}</div>` : '';
-  const top = `<div class="top"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
+  const top = `<div class="top" style="--t:${TEAM_HUES[t]}"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
   let body = '';
   if (mode === 'lobby') body = msg(m.avatar, pickText('wait_start', S.pid + 'lobby'));
   else if (mode === 'break') body = msg(m.avatar, 'შესვენებაა!', 'დაისვენე და მიირთვი რამე.');
@@ -163,7 +164,7 @@ function g2Html(m, l) {
     }
     if (q.type === 'multi') {
       return qt + `<div class="msg" style="padding:0 0 4px"><small>შეიძლება რამდენიმე სწორი იყოს</small></div>` +
-        opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? '✓' : LETTERS[i]}</span>${esc(o)}</button>`).join('') +
+        opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? ico('check') : LETTERS[i]}</span>${esc(o)}</button>`).join('') +
         `<button class="btn primary block lg" id="sendMulti" ${S.sel.length ? '' : 'disabled'} style="margin-top:18px">გაგზავნა</button>`;
     }
     if (q.type === 'text') {

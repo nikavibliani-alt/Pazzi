@@ -91,7 +91,7 @@ function view(html, key) {
 const imgPh = id => `<div class="qimg-ph" data-id="${esc(id)}"></div>`;
 const tmStyle = i => `background:${TEAM_COLORS[i]};color:${TEAM_TEXT[i]}`;
 function teamsStrip(big, wrong) {
-  return `<div class="teams ${big ? 'big' : ''} stag">${[0, 1, 2, 3].map(i => `<div class="tm ${wrong && wrong[i] ? 'out' : ''}" style="${tmStyle(i)}"><div class="n">${esc(teamName(S.teams, i))}</div><div class="s">${teamScore(S.teams, i)}</div></div>`).join('')}</div>`;
+  return `<div class="teams ${big ? 'big' : ''} stag">${[0, 1, 2, 3].map(i => `<div class="tm ${wrong && wrong[i] ? 'out' : ''}" style="--t:${TEAM_HUES[i]}"><div class="n">${tdot(i)}${esc(teamName(S.teams, i))}</div><div class="s">${teamScore(S.teams, i)}</div></div>`).join('')}</div>`;
 }
 function joinInfo() { return location.href.replace(/tv\.html.*$/, '').replace(/^https?:\/\//, ''); }
 
@@ -117,10 +117,10 @@ function g1() {
   let over = '';
   const b = l.buzz;
   if (b) {
-    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div><div class="tn rise" style="${tmStyle(b.team)}">${esc(teamName(S.teams, b.team))}</div>${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
+    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div><div class="tn rise" style="background:${TEAM_HUES[b.team]};color:#121016;border-color:transparent">${esc(teamName(S.teams, b.team))}</div>${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
   }
   const ansBox = (!b && l.reveal) ? `<div class="ansbox pop">${esc(l.reveal.answer)}</div>` : '';
-  return `<div class="scr ${q.img ? 'hasimg' : ''}">${over}${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${q.snd ? '<div class="sub">🎵 გამოიცანი სიმღერა!</div>' : ''}${ansBox}<div style="flex:${q.img ? 0 : 1}"></div>${teamsStrip(false, l.wrongTeams)}</div>`;
+  return `<div class="scr ${q.img ? 'hasimg' : ''}">${over}${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${q.snd ? `<div class="sub">${ico('music')} გამოიცანი სიმღერა!</div>` : ''}${ansBox}<div style="flex:${q.img ? 0 : 1}"></div>${teamsStrip(false, l.wrongTeams)}</div>`;
 }
 
 function g2() {
@@ -133,7 +133,7 @@ function g2() {
   const votes = opts.map((_, i) => Object.values(S.answers).filter(a => q.type === 'multi' ? arr(a.a).includes(i) : Number(a.a) === i).length);
   let status;
   if (phase === 'answering') status = `<div class="cnt">უპასუხა ${answered}/${total}</div>`;
-  else if (phase === 'locked') status = `<div class="cnt">🔒 პასუხები დაიკეტა · ${answered}/${total}</div>`;
+  else if (phase === 'locked') status = `<div class="cnt">${ico('lock')} პასუხები დაიკეტა · ${answered}/${total}</div>`;
   else {
     const got = Object.keys(S.awarded[l.qid] || {}).filter(p => S.players[p]);
     if (q.type === 'poll') status = `<div class="cnt">ხმა მისცა ${answered}-მა</div>`;
@@ -156,7 +156,7 @@ function renderBoard() {
   cur.forEach((p, i) => { curIdx[p.id] = i; });
   const n = cur.length || 1, rh = Math.min(8.4, 62 / n);
   const y = i => `translateY(calc(var(--v) * ${(rh * i).toFixed(2)}))`;
-  const rows = cur.map(p => `<div class="sbrow ${prevIdx[p.id] === 0 ? 'first' : ''}" data-id="${p.id}" style="height:calc(var(--v) * ${(rh - 1).toFixed(2)});transform:${y(prevIdx[p.id] || 0)}"><span class="pos">${(prevIdx[p.id] || 0) + 1}</span><span class="pic">${av(p.avatar)}</span><span class="nm">${esc(p.name)}</span><span class="pt">${prevSc[p.id] || 0}</span></div>`).join('');
+  const rows = cur.map(p => `<div class="sbrow ${prevIdx[p.id] === 0 ? 'first' : ''}" data-id="${p.id}" style="height:calc(var(--v) * ${(rh - 1).toFixed(2)});transform:${y(prevIdx[p.id] || 0)}"><span class="pos">${(prevIdx[p.id] || 0) + 1}</span><span class="pic">${av(p.avatar)}</span><span class="nm">${tdot(p.team)}${esc(p.name)}</span><span class="pt">${prevSc[p.id] || 0}</span></div>`).join('');
   app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('board_title', l.qid))}</div><div class="sb" style="height:calc(var(--v) * ${(rh * n).toFixed(2)})">${rows}</div></div>`;
   setTimeout(() => {
     cur.forEach((p, i) => {
@@ -176,7 +176,7 @@ function renderFinal() {
     const r = ranking(S.players, S.awarded);
     const slot = (i, cls, medal) => { const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${p.score} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
     const last = r[r.length - 1];
-    app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">🥁 🥁 🥁</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
+    app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
       (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${last.score} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>';
   }
   const need = { 2: 1, 1: 2, 0: 3 };
@@ -188,7 +188,7 @@ function renderFinal() {
 function confetti(loser) {
   return; // დეკორაციის გარეშე
 
-  const em = loser ? ['🥔', '😂', '💖', '🎈'] : ['🎉', '✨', '🎊', '⭐', '💖'];
+  const em = ['·'];
   for (let i = 0; i < 30; i++) {
     const d = document.createElement('div'); d.className = 'fall'; d.textContent = em[i % em.length];
     d.style.left = Math.random() * 100 + 'vw'; d.style.animationDuration = (3 + Math.random() * 3) + 's'; d.style.animationDelay = (Math.random() * 1.5) + 's';

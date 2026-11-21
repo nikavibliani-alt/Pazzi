@@ -16,5 +16,5 @@ function tvOptions(q, o) {
 }
 // ადმინის გადახედვა: ისეთივე, როგორიც ტვ-ზე გამოჩნდება
 function tvPreviewHtml(q, imgHtml) {
-  return `<div class="scr">${tvQCard(q)}${tvImgBox(imgHtml)}${tvOptions(q, {})}${q.type === 'buzz' && q.snd ? '<div class="sub">🎵 გამოიცანი სიმღერა!</div>' : ''}</div>`;
+  return `<div class="scr">${tvQCard(q)}${tvImgBox(imgHtml)}${tvOptions(q, {})}${q.type === 'buzz' && q.snd ? `<div class="sub">${ico('music')} გამოიცანი სიმღერა!</div>` : ''}</div>`;
 }

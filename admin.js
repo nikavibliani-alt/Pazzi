@@ -8,7 +8,7 @@ gate(start);
 let started = false;
 function start() {
   if (started) return; started = true;
-  const badge = document.createElement('span'); badge.className = 'badge'; badge.id = 'saveBadge'; badge.textContent = '✔ ყველაფერი შენახულია';
+  const badge = document.createElement('span'); badge.className = 'badge'; badge.id = 'saveBadge'; badge.innerHTML = ico('check') + ' ყველაფერი შენახულია';
   $('.topbar .badge').after(badge);
   const on = (path, key) => db.ref(path).on('value', s => { M[key] = s.val() || {}; M.loaded[key] = true; onData(key); });
   on('quizzes', 'quizzes'); on('questions', 'questions'); on('library/images', 'images'); on('library/sounds', 'sounds'); on('teams', 'teams');
@@ -27,7 +27,7 @@ function queueSave(key, fn, delay) {
 function run(key) {
   const p = pending.get(key); if (!p) return;
   clearTimeout(p.t); pending.delete(key);
-  Promise.resolve(p.fn()).then(() => { if (!pending.size) $('#saveBadge').textContent = '✔ ყველაფერი შენახულია'; });
+  Promise.resolve(p.fn()).then(() => { if (!pending.size) $('#saveBadge').innerHTML = ico('check') + ' ყველაფერი შენახულია'; });
 }
 window.addEventListener('beforeunload', () => { [...pending.keys()].forEach(run); });
 
@@ -80,7 +80,7 @@ function renderQuizTab() {
 function drawQuizCol() {
   const grp = (g, title) => {
     const l = quizList(g);
-    return `<div class="panel"><h3>${title}</h3>${l.map(([id, q]) => `<div class="qrow ${id === M.selQuiz ? 'cur' : ''}" data-qz="${id}" style="cursor:pointer"><div class="tx"><b>${esc(q.name)}</b><small>${qOf(id).length} კითხვა${activeQuiz(g) === id ? ' · ★ დღეს საღამოს' : ''}</small></div></div>`).join('') || '<p class="hint">ქვიზი არ არის</p>'}<button class="btn sm block" data-a="newquiz" data-id="${g}" style="margin-top:10px">+ ახალი ქვიზი</button></div>`;
+    return `<div class="panel"><h3>${title}</h3>${l.map(([id, q]) => `<div class="qrow ${id === M.selQuiz ? 'cur' : ''}" data-qz="${id}" style="cursor:pointer"><div class="tx"><b>${esc(q.name)}</b><small>${qOf(id).length} კითხვა${activeQuiz(g) === id ? ` · ${ico('star')} დღეს საღამოს` : ''}</small></div></div>`).join('') || '<p class="hint">ქვიზი არ არის</p>'}<button class="btn sm block" data-a="newquiz" data-id="${g}" style="margin-top:10px">+ ახალი ქვიზი</button></div>`;
   };
   $('#qz-col').innerHTML = grp(1, 'თამაში 1 · ბლიცი') + grp(2, 'თამაში 2 · ფაცი თუ ფუცი');
   drawQHead(true);
@@ -92,19 +92,19 @@ function drawQHead(listOnly) {
   if (!$('#ql-name') || !listOnly) {
     const tonight = activeQuiz(qz.game) === M.selQuiz;
     col.innerHTML = `<div class="panel"><h3>ქვიზი</h3><label class="f" style="margin-top:0">სახელი</label><input type="text" id="ql-name" value="${esc(qz.name)}" maxlength="50">
-    <div class="acts" style="margin-bottom:0"><button class="btn sm ${tonight ? 'mint' : 'primary'}" data-a="tonight" ${tonight ? 'disabled' : ''}>${tonight ? '★ დღეს საღამოს ეს არის' : '★ დღეს ეს გამოვიყენოთ'}</button><button class="btn sm" data-a="dupquiz">დუბლირება</button><button class="btn sm danger" data-a="delquiz">წაშლა</button></div></div>
+    <div class="acts" style="margin-bottom:0"><button class="btn sm ${tonight ? 'mint' : 'primary'}" data-a="tonight" ${tonight ? 'disabled' : ''}>${tonight ? ico('star') + ' დღეს საღამოს ეს არის' : ico('star') + ' დღეს ეს გამოვიყენოთ'}</button><button class="btn sm" data-a="dupquiz">დუბლირება</button><button class="btn sm danger" data-a="delquiz">წაშლა</button></div></div>
     <div class="panel"><h3>კითხვები <span class="muted" style="text-transform:none;font-size:13px">· გადაათრიე რიგის შესაცვლელად</span></h3><button class="btn primary block" data-a="addq" style="margin-bottom:10px">+ ახალი კითხვა</button><div id="ql-list"></div></div>`;
   } else {
     // სახელის ველს ხელს არ ვუშლით, მხოლოდ ღილაკებს ვანახლებთ
     const tonight = activeQuiz(qz.game) === M.selQuiz, b = $('[data-a=tonight]');
-    if (b) { b.disabled = tonight; b.className = 'btn sm ' + (tonight ? 'mint' : 'primary'); b.textContent = tonight ? '★ დღეს საღამოს ეს არის' : '★ დღეს ეს გამოვიყენოთ'; }
+    if (b) { b.disabled = tonight; b.className = 'btn sm ' + (tonight ? 'mint' : 'primary'); b.innerHTML = tonight ? ico('star') + ' დღეს საღამოს ეს არის' : ico('star') + ' დღეს ეს გამოვიყენოთ'; }
   }
   drawQList();
 }
 function drawQList() {
   const el = $('#ql-list'); if (!el) return;
   const qs = qOf(M.selQuiz);
-  el.innerHTML = qs.map((x, i) => `<div class="qrow ${x.id === M.selQ ? 'cur' : ''} ${qComplete(x) ? '' : 'warn'}" draggable="true" data-id="${x.id}"><span class="grip">⠿</span><span class="no">${i + 1}</span><div class="tx" data-a="editq" data-id="${x.id}" style="cursor:pointer"><b>${esc(x.text || '(ცარიელი კითხვა)')} ${x.img ? '🖼️' : ''}${x.snd ? '🎵' : ''}</b><small>${TYPE_NAMES[x.type] || ''}${qComplete(x) ? '' : ' · არასრულია'}</small></div><button class="btn sm" data-a="up" data-id="${x.id}" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn sm" data-a="down" data-id="${x.id}" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button><button class="btn sm danger" data-a="delq" data-id="${x.id}">✖</button></div>`).join('') || '<p class="hint">ამ ქვიზში კითხვები ჯერ არ არის.</p>';
+  el.innerHTML = qs.map((x, i) => `<div class="qrow ${x.id === M.selQ ? 'cur' : ''} ${qComplete(x) ? '' : 'warn'}" draggable="true" data-id="${x.id}"><span class="grip">⠿</span><span class="no">${i + 1}</span><div class="tx" data-a="editq" data-id="${x.id}" style="cursor:pointer"><b>${esc(x.text || '(ცარიელი კითხვა)')} ${x.img ? ico('image') : ''}${x.snd ? ico('music') : ''}</b><small>${TYPE_NAMES[x.type] || ''}${qComplete(x) ? '' : ' · არასრულია'}</small></div><button class="btn sm" data-a="up" data-id="${x.id}" ${i === 0 ? 'disabled' : ''}>▲</button><button class="btn sm" data-a="down" data-id="${x.id}" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button><button class="btn sm danger" data-a="delq" data-id="${x.id}">${ico('cross')}</button></div>`).join('') || '<p class="hint">ამ ქვიზში კითხვები ჯერ არ არის.</p>';
 }
 
 // ── რედაქტორი ──
@@ -127,8 +127,8 @@ function drawEditor() {
   h += `<label class="f">სურათი (ჩანს ტვ-ზე)</label><div class="row2">${im ? `<img src="${im.thumb}" style="width:96px;height:72px;object-fit:cover;border-radius:12px;border:2.5px solid var(--ink)">` : '<span class="hint">სურათი არ არის</span>'}<button class="btn sm" data-a="pickimg">ბიბლიოთეკიდან</button><label class="btn sm">ახლის ატვირთვა<input type="file" id="e_img_up" accept="image/*" hidden></label>${c.img ? '<button class="btn sm danger" data-a="rmimg">მოხსნა</button>' : ''}</div>`;
   const sn = c.snd && M.sounds[c.snd];
   const sopts = Object.entries(M.sounds);
-  h += `<label class="f">ხმა (მაგ. „გამოიცანი სიმღერა“ — იკვრება ტვ-ზე, წამყვანი აჭერს ღილაკს)</label><div class="row2"><select id="e_snd"><option value="">ხმის გარეშე</option>${sopts.map(([id, s]) => `<option value="${id}" ${c.snd === id ? 'selected' : ''}>${esc(s.name)} (${Math.round(s.dur || 0)} წმ)</option>`).join('')}</select>${sn ? `<button class="btn sm" data-a="playsnd" data-id="${c.snd}">▶</button>` : ''}<label class="btn sm">ახლის ატვირთვა<input type="file" id="e_snd_up" accept="audio/*" hidden></label></div>`;
-  h += `<p class="saved" id="e_status">✔ შენახულია</p></div>`;
+  h += `<label class="f">ხმა (მაგ. „გამოიცანი სიმღერა“ — იკვრება ტვ-ზე, წამყვანი აჭერს ღილაკს)</label><div class="row2"><select id="e_snd"><option value="">ხმის გარეშე</option>${sopts.map(([id, s]) => `<option value="${id}" ${c.snd === id ? 'selected' : ''}>${esc(s.name)} (${Math.round(s.dur || 0)} წმ)</option>`).join('')}</select>${sn ? `<button class="btn sm" data-a="playsnd" data-id="${c.snd}">${ico('play')}</button>` : ''}<label class="btn sm">ახლის ატვირთვა<input type="file" id="e_snd_up" accept="audio/*" hidden></label></div>`;
+  h += `<p class="saved" id="e_status">${ico('check')} შენახულია</p></div>`;
   h += `<div class="panel"><h3>ასე გამოჩნდება ტვ-ზე</h3><div class="tvwrap"><div class="tvframe tv" id="tvprev"></div></div></div>`;
   col.innerHTML = h;
   drawPreview();
@@ -161,7 +161,7 @@ function qDoc(c) {
 function scheduleQSave() {
   const c = M.cur, id = M.selQ; if (!c || !id) return;
   const s = $('#e_status'); if (s) s.textContent = '… ინახება';
-  queueSave('q:' + id, () => db.ref('questions/' + id).set(qDoc(c)).then(() => { const s2 = $('#e_status'); if (s2) s2.textContent = '✔ შენახულია'; }));
+  queueSave('q:' + id, () => db.ref('questions/' + id).set(qDoc(c)).then(() => { const s2 = $('#e_status'); if (s2) s2.innerHTML = ico('check') + ' შენახულია'; }));
 }
 function selectQ(id) {
   if (M.selQ) run('q:' + M.selQ);
@@ -327,8 +327,8 @@ function renderSounds() {
   const l = Object.entries(M.sounds).sort((a, b) => (b[1].created || 0) - (a[1].created || 0));
   const sel = ev => { const cur = (CFG.sounds || {})[ev] || 'default'; return `<select data-ev="${ev}"><option value="default" ${cur === 'default' ? 'selected' : ''}>ჩაშენებული (ნაგულისხმევი)</option><option value="none" ${cur === 'none' ? 'selected' : ''}>უხმოდ</option>${l.map(([id, s]) => `<option value="${id}" ${cur === id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`; };
   view.innerHTML = `<div class="cols"><div><div class="panel"><h3>ხმების ბიბლიოთეკა</h3><div class="drop"><b>ატვირთე შენი ხმები</b><p class="hint">თითო ფაილი: მაქსიმუმ <b>${MAX_SND_SEC} წამი</b> და <b>${MAX_SND_MB} მბ</b>. MP3 საუკეთესოა. იგივე ბიბლიოთეკიდან იღებ სიმღერის კლიპებსაც „გამოიცანი სიმღერა“ კითხვებისთვის.</p><label class="btn primary">აირჩიე ფაილები<input type="file" id="lib_snd_up" accept="audio/*" multiple hidden></label></div></div>
-  <div class="panel"><h3>ხმები (${l.length})</h3>${l.map(([id, s]) => `<div class="sndrow"><button class="btn sm sky" data-a="play" data-id="${id}">▶ / ■</button><input type="text" data-sndname="${id}" value="${esc(s.name)}" maxlength="40"><span class="hint" style="margin:0">${Math.round(s.dur || 0)} წმ · ${((s.size || 0) / 1048576).toFixed(2)} მბ · ${usage('snd', id)} კითხვა</span><label class="btn sm">ჩანაცვლება<input type="file" data-replsnd="${id}" accept="audio/*" hidden></label><button class="btn sm danger" data-a="delsnd" data-id="${id}">წაშლა</button></div>`).join('') || '<p class="hint">ჯერ ხმები არ არის.</p>'}</div></div>
-  <div class="panel"><h3>რომელი ხმა როდის უკრავს (ტვ-ზე)</h3><p class="hint">აირჩიე ჩაშენებული ხმა, უხმოდ, ან შენი ატვირთული ხმა. „▶“-თი მოუსმინე.</p>${SOUND_EVENTS.map(([ev, label]) => `<div class="evrow"><b>${label}</b>${sel(ev)}<button class="btn sm sky" data-a="testev" data-id="${ev}">▶</button></div>`).join('')}</div></div>`;
+  <div class="panel"><h3>ხმები (${l.length})</h3>${l.map(([id, s]) => `<div class="sndrow"><button class="btn sm sky" data-a="play" data-id="${id}">${ico('play')} / ${ico('stop')}</button><input type="text" data-sndname="${id}" value="${esc(s.name)}" maxlength="40"><span class="hint" style="margin:0">${Math.round(s.dur || 0)} წმ · ${((s.size || 0) / 1048576).toFixed(2)} მბ · ${usage('snd', id)} კითხვა</span><label class="btn sm">ჩანაცვლება<input type="file" data-replsnd="${id}" accept="audio/*" hidden></label><button class="btn sm danger" data-a="delsnd" data-id="${id}">წაშლა</button></div>`).join('') || '<p class="hint">ჯერ ხმები არ არის.</p>'}</div></div>
+  <div class="panel"><h3>რომელი ხმა როდის უკრავს (ტვ-ზე)</h3><p class="hint">აირჩიე ჩაშენებული ხმა, უხმოდ, ან შენი ატვირთული ხმა. „${ico('play')}“-თი მოუსმინე.</p>${SOUND_EVENTS.map(([ev, label]) => `<div class="evrow"><b>${label}</b>${sel(ev)}<button class="btn sm sky" data-a="testev" data-id="${ev}">${ico('play')}</button></div>`).join('')}</div></div>`;
 }
 
 // ═════════ პარამეტრები ═════════

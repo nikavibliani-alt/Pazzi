@@ -90,26 +90,26 @@ function lobbyPanel() {
 function g1Panel() {
   if (!activeQuiz(1)) return noQuiz(1);
   const l = S.live, qs = listQ(1), q = l.qid && S.questions[l.qid];
-  const list = qs.map((x, i) => `<div class="qrow ${x.id === l.qid ? 'cur' : ''}"><span class="no">${i + 1}</span><div class="tx"><b>${esc(x.text || '(ცარიელი)')} ${x.img ? '🖼️' : ''}${x.snd ? '🎵' : ''}</b><small>პასუხი: ${esc(x.answer || '—')}</small></div><button class="btn sm mint" data-act="g1show" data-id="${x.id}">აჩვენე</button></div>`).join('') || '<p>ამ ქვიზში კითხვები არ არის.</p>';
+  const list = qs.map((x, i) => `<div class="qrow ${x.id === l.qid ? 'cur' : ''}"><span class="no">${i + 1}</span><div class="tx"><b>${esc(x.text || '(ცარიელი)')} ${x.img ? ico('image') : ''}${x.snd ? ico('music') : ''}</b><small>პასუხი: ${esc(x.answer || '—')}</small></div><button class="btn sm mint" data-act="g1show" data-id="${x.id}">აჩვენე</button></div>`).join('') || '<p>ამ ქვიზში კითხვები არ არის.</p>';
   let cur = '';
   if (q) {
     const b = l.buzz;
     cur = `<div class="panel"><h3>ახლა</h3><div style="font-size:24px;font-weight:800">${esc(q.text)}</div><div class="ans">პასუხი: <b>${esc(q.answer)}</b></div>
-    <div class="bigbuzz" style="background:${b ? TEAM_COLORS[b.team] : '#fff'};color:${b ? TEAM_TEXT[b.team] : 'inherit'}">${b ? `${pic(b.avatar)}<span><b>${esc(b.name)}</b> · ${esc(teamName(S.teams, b.team))}${l.phase === 'right' ? ' · სწორია' : ''}</span>` : (l.phase === 'open' ? 'ველოდებით, ვინ დააჭერს…' : '')}</div>
-    <div class="acts"><button class="btn mint lg" data-act="right" ${l.phase === 'buzzed' ? '' : 'disabled'}>✔ სწორია (+1)</button><button class="btn danger lg" data-act="wrong" ${l.phase === 'buzzed' ? '' : 'disabled'}>✖ არასწორია</button></div>
+    <div class="bigbuzz" style="${b ? `border-left:6px solid ${TEAM_HUES[b.team]}` : ''}">${b ? `${pic(b.avatar)}<span><b>${esc(b.name)}</b> · ${tdot(b.team)}${esc(teamName(S.teams, b.team))}${l.phase === 'right' ? ' · სწორია' : ''}</span>` : (l.phase === 'open' ? 'ველოდებით, ვინ დააჭერს…' : '')}</div>
+    <div class="acts"><button class="btn mint lg" data-act="right" ${l.phase === 'buzzed' ? '' : 'disabled'}>${ico('check')} სწორია (+1)</button><button class="btn danger lg" data-act="wrong" ${l.phase === 'buzzed' ? '' : 'disabled'}>${ico('cross')} არასწორია</button></div>
     <div class="acts"><button class="btn lemon" data-act="g1next">შემდეგი კითხვა →</button><button class="btn sm" data-act="showans">პასუხი ტვ-ზე</button></div>
     ${q.snd ? audioBtns() : ''}</div>`;
   } else cur = '<div class="panel"><p>აირჩიე კითხვა მარცხნიდან „აჩვენე“-თი.</p></div>';
-  const teams = [0, 1, 2, 3].map(i => `<div class="scorepick"><div class="tn" style="background:${TEAM_COLORS[i]};color:${TEAM_TEXT[i]}">${esc(teamName(S.teams, i))}: <b>${teamScore(S.teams, i)}</b></div><button class="btn sm" data-act="tscore" data-id="${i}" data-d="-1">−1</button><button class="btn sm mint" data-act="tscore" data-id="${i}" data-d="1">+1</button></div>`).join('');
+  const teams = [0, 1, 2, 3].map(i => `<div class="scorepick"><div class="tn">${tdot(i)}${esc(teamName(S.teams, i))}: <b>${teamScore(S.teams, i)}</b></div><button class="btn sm" data-act="tscore" data-id="${i}" data-d="-1">−1</button><button class="btn sm mint" data-act="tscore" data-id="${i}" data-d="1">+1</button></div>`).join('');
   return `<div class="cols"><div class="panel"><h3>${esc(quizName(1) || '')} · კითხვები</h3>${list}</div><div>${cur}<div class="panel"><h3>ქულების ხელით შეცვლა</h3>${teams}</div></div></div>`;
 }
-function audioBtns() { return `<div class="acts"><button class="btn sky" data-act="audio" data-id="play">▶ ხმის დაკვრა</button><button class="btn" data-act="audio" data-id="stop">■ გაჩერება</button></div>`; }
+function audioBtns() { return `<div class="acts"><button class="btn sky" data-act="audio" data-id="play">${ico('play')} ხმის დაკვრა</button><button class="btn" data-act="audio" data-id="stop">${ico('stop')} გაჩერება</button></div>`; }
 
 // ───────── თამაში 2 ─────────
 function g2Panel() {
   if (!activeQuiz(2)) return noQuiz(2);
   const l = S.live, qs = listQ(2), q = l.qid && S.questions[l.qid];
-  const list = qs.map((x, i) => `<div class="qrow ${x.id === l.qid ? 'cur' : ''} ${qComplete(x) ? '' : 'warn'}"><span class="no">${i + 1}</span><div class="tx"><b>${esc(x.text || '(ცარიელი)')} ${x.img ? '🖼️' : ''}${x.snd ? '🎵' : ''}</b><small>${TYPE_NAMES[x.type] || ''}${S.awarded[x.id] ? ' · ნათამაშებია' : ''}${qComplete(x) ? '' : ' · არასრულია'}</small></div><button class="btn sm mint" data-act="g2show" data-id="${x.id}">აჩვენე</button></div>`).join('') || '<p>ამ ქვიზში კითხვები არ არის.</p>';
+  const list = qs.map((x, i) => `<div class="qrow ${x.id === l.qid ? 'cur' : ''} ${qComplete(x) ? '' : 'warn'}"><span class="no">${i + 1}</span><div class="tx"><b>${esc(x.text || '(ცარიელი)')} ${x.img ? ico('image') : ''}${x.snd ? ico('music') : ''}</b><small>${TYPE_NAMES[x.type] || ''}${S.awarded[x.id] ? ' · ნათამაშებია' : ''}${qComplete(x) ? '' : ' · არასრულია'}</small></div><button class="btn sm mint" data-act="g2show" data-id="${x.id}">აჩვენე</button></div>`).join('') || '<p>ამ ქვიზში კითხვები არ არის.</p>';
   let cur = '';
   if (q) {
     const opts = arr(q.options), corr = arr(q.correct).map(Number);
@@ -122,7 +122,7 @@ function g2Panel() {
     } else {
       ansHtml = `<div class="ans">სწორი პასუხი: <b>${esc(q.answer || '—')}</b></div>`;
       const sorted = va.slice().sort((a, b) => (a[1].t || 0) - (b[1].t || 0));
-      ansHtml += (sorted.map(([pid, a], i) => `<div class="tans ${a.ok ? 'ok' : (i === 0 ? 'first' : '')}"><b>${i === 0 ? '⭐ პირველი' : (i + 1) + '.'}</b>${pic(S.players[pid].avatar)}<span>${esc(S.players[pid].name)}</span><span class="t"><b>${esc(a.a)}</b></span><button class="btn sm ${a.ok ? 'mint' : ''}" data-act="mark" data-id="${pid}">${a.ok ? '✔ სწორია' : 'სწორია?'}</button></div>`).join('')) || '<p>პასუხები ჯერ არ მოსულა…</p>';
+      ansHtml += (sorted.map(([pid, a], i) => `<div class="tans ${a.ok ? 'ok' : (i === 0 ? 'first' : '')}"><b>${i === 0 ? ico('star') + ' პირველი' : (i + 1) + '.'}</b>${pic(S.players[pid].avatar)}<span>${esc(S.players[pid].name)}</span><span class="t"><b>${esc(a.a)}</b></span><button class="btn sm ${a.ok ? 'mint' : ''}" data-act="mark" data-id="${pid}">${a.ok ? ico('check') + ' სწორია' : 'სწორია?'}</button></div>`).join('')) || '<p>პასუხები ჯერ არ მოსულა…</p>';
     }
     const phase = l.phase;
     let step;
@@ -131,11 +131,11 @@ function g2Panel() {
     else if (phase === 'locked') step = ['g2reveal', 'გამოაშკარავება'];
     else step = ['g2board', 'ქულების ცხრილი'];
     const stage = l.view === 'scoreboard' ? 'ქულები' : ({ answering: 'პასუხობენ', locked: 'დაკეტილია', revealed: 'გამოაშკარავებულია' }[phase] || '');
-    cur = `<div class="panel"><h3>ახლა</h3><div style="font-size:22px;font-weight:800">${esc(q.text)} ${q.img ? '🖼️' : ''}</div>
+    cur = `<div class="panel"><h3>ახლა</h3><div style="font-size:22px;font-weight:800">${esc(q.text)} ${q.img ? ico('image') : ''}</div>
     <div class="statusbar">უპასუხა ${answeredIds.size}/${players.length} · ეტაპი: <b>${stage}</b></div>
     <div class="acts"><button class="btn primary lg" data-act="${step[0]}">${step[1]}</button></div>
     ${q.snd ? audioBtns() : ''}${ansHtml}
-    <div class="who">${players.map(([id, p]) => `<span class="${answeredIds.has(id) ? 'yes' : 'no'}">${pic(p.avatar)}${esc(p.name)} ${answeredIds.has(id) ? '✓' : '…'}</span>`).join('')}</div></div>`;
+    <div class="who">${players.map(([id, p]) => `<span class="${answeredIds.has(id) ? 'yes' : 'no'}">${pic(p.avatar)}${esc(p.name)} ${answeredIds.has(id) ? ico('check') : '…'}</span>`).join('')}</div></div>`;
   } else cur = `<div class="panel"><div class="acts"><button class="btn primary lg" data-act="g2first">პირველი კითხვა</button></div></div>`;
   return `<div class="cols"><div class="panel"><h3>${esc(quizName(2) || '')} · კითხვები (გადასახტომად დააჭირე „აჩვენე“-ს)</h3>${list}</div><div>${cur}<div class="acts"><button class="btn lav" data-act="mode" data-id="final">ფინალი</button></div></div></div>`;
 }
@@ -151,7 +151,7 @@ function finalPanel() {
 // ───────── მოთამაშეები ─────────
 function renderPlayers() {
   const pl = Object.entries(S.players), sc = scoreMap(S.awarded);
-  view.innerHTML = `<div class="cols"><div class="panel"><h3>მოთამაშეები (${pl.length})</h3>${pl.map(([id, p]) => `<div class="prow">${pic(p.avatar)}<span class="nm">${esc(p.name)}</span><span>${sc[id] || 0} ქულა</span><select data-team="${id}">${[0, 1, 2, 3].map(i => `<option value="${i}" ${p.team === i ? 'selected' : ''}>${esc(teamName(S.teams, i))}</option>`).join('')}</select><button class="btn sm danger" data-act="kick" data-id="${id}">წაშლა</button></div>`).join('') || '<p>ჯერ არავინ შემოსულა.</p>'}</div>
+  view.innerHTML = `<div class="cols"><div class="panel"><h3>მოთამაშეები (${pl.length})</h3>${pl.map(([id, p]) => `<div class="prow">${pic(p.avatar)}<span class="nm">${esc(p.name)}</span><span>${sc[id] || 0} ქულა</span>${tdot(p.team)}<select data-team="${id}">${[0, 1, 2, 3].map(i => `<option value="${i}" ${p.team === i ? 'selected' : ''}>${esc(teamName(S.teams, i))}</option>`).join('')}</select><button class="btn sm danger" data-act="kick" data-id="${id}">წაშლა</button></div>`).join('') || '<p>ჯერ არავინ შემოსულა.</p>'}</div>
   <div class="panel"><h3>ახალი თამაში</h3><p>წაშლის ყველა მოთამაშეს, ქულას და პასუხს, ახალ კოდს შექმნის. კითხვები და პარამეტრები დარჩება.</p><button class="btn danger" data-act="reset">ყველაფრის განულება</button></div></div>`;
 }
 
