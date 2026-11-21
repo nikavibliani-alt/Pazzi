@@ -62,6 +62,31 @@ const DEFAULT_STREAKS = {
     5: { where: 'phone', dur: 2 }
   }
 };
+// ბლიცი: გუნდების სერიები (სვეტზე ეფექტი ტვ-ზე)
+const TEAM_FX = [['sparks', 'პატარა ნაპერწკლები'], ['flames', 'ცეცხლი სვეტზე'], ['bigflames', 'დიდი ცეცხლი და ნათება'], ['colfireworks', 'სვეტი ფეიერვერკით სკდება'], ['shiver', 'სვეტი კანკალებს და ნაცრისფერდება']];
+const DEFAULT_TEAM_STREAKS = {
+  on: true,
+  correct: { 2: { effect: 'sparks' }, 3: { effect: 'flames' }, 4: { effect: 'bigflames' }, 5: { effect: 'colfireworks' } },
+  wrong: { 2: { effect: 'shiver' } }
+};
+function teamStreakCfg() { const c = CFG.teamStreaks; return c && (c.correct || c.wrong || c.on === false) ? c : DEFAULT_TEAM_STREAKS; }
+// სვეტის მუდმივი ცეცხლი: უდიდესი საფეხური ≤ n, რომლის ეფექტი ცეცხლია
+function teamFireLevel(n) {
+  const c = teamStreakCfg(); if (c.on === false || !n) return '';
+  let lvl = ''; Object.entries(c.correct || {}).sort((a, b) => a[0] - b[0]).forEach(([k, st]) => { if (Number(k) <= n && st && (st.effect === 'flames' || st.effect === 'bigflames')) lvl = st.effect; });
+  if (lvl === 'flames' && Object.entries(c.correct || {}).some(([k, st]) => Number(k) <= n && st && st.effect === 'colfireworks')) lvl = 'bigflames';
+  return lvl;
+}
+// თამაში 2: ყველა ონლაინ მოთამაშემ უპასუხა? (ოფლაინები არ აბრკოლებენ)
+function allOnlineAnswered(players, answers) {
+  const on = Object.entries(players || {}).filter(([, p]) => isOnline(p));
+  return on.length > 0 && on.every(([pid]) => answers && answers[pid]);
+}
+function autoLock(players, answers) {
+  if (!allOnlineAnswered(players, answers)) return;
+  db.ref('live').transaction(l => { if (!l || l.mode !== 'g2' || l.phase !== 'answering') return; l.phase = 'locked'; l.autoLocked = true; delete l.lockedAt; return l; }, null, false)
+    .then(r => { if (r.committed) db.ref('live/lockedAt').set(TS); }); // სერვერის დრო — პასუხების დროსთან შესადარებლად
+}
 function streakCfg() { const c = CFG.streaks; return c && (c.correct || c.wrong || c.on === false) ? c : DEFAULT_STREAKS; }
 // ზედიზედ სწორი (c) / არასწორი (w): კითხვები გამოაშკარავების დროის მიხედვით; ნაწილობრივი (p) სერიას არ ცვლის
 function streakOf(results, pid) {
@@ -86,7 +111,7 @@ const DEFAULT_PIN = '5813';
 // ხმის მოვლენები (ადმინში თითოეულზე ირჩევ ხმას)
 const SOUND_EVENTS = [
   ['right', 'სწორი პასუხი'], ['wrong', 'არასწორი პასუხი'], ['partly', 'ნაწილობრივ სწორი'], ['buzz', 'ვიღაცამ დააჭირა ღილაკს'],
-  ['reveal', 'კითხვის გამოაშკარავება'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['loser', 'ბოლო ადგილის გამოცხადება']
+  ['reveal', 'კითხვის გამოაშკარავება'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['drumroll', 'ფინალის დრამი (თითო ადგილის წინ)'], ['loser', 'ბოლო ადგილის გამოცხადება']
 ];
 
 // სასაცილო ტექსტები (ადმინში რედაქტირდება). {name} = მოთამაშის სახელი

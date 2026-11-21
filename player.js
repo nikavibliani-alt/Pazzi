@@ -115,8 +115,7 @@ async function join() {
     // პერსონაჟს ბაზა აძლევს მხოლოდ ერთს — ორი ტელეფონი ერთდროულად ვერ აიღებს
     const lock = await db.ref('avatars/' + f.avatar).transaction(cur => { const o = lockOwner(cur); return (o && o !== pid && (S.players[o] || Date.now() - ((cur && cur.t) || 0) < 60000)) ? undefined : { pid, t: Date.now() }; });
     if (!lock.committed) { f.err = 'ეს პერსონაჟი უკვე აიღეს, აირჩიე სხვა'; f.avatar = null; S.busy = false; return render(); }
-    const r = await db.ref('session/nextTeam').transaction(n => (n || 0) + 1);
-    const team = (r.snapshot.val() - 1) % teamCount();
+    const team = null; // გუნდებს წამყვანი ანაწილებს
     await db.ref('players/' + pid).set({ name, avatar: f.avatar, team, joined: TS });
     store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
     S.pid = pid; if (S.curQ) bindAns();
@@ -148,6 +147,7 @@ function buzz() {
   if (navigator.vibrate) navigator.vibrate(60);
   db.ref('live').transaction(l => {
     if (!l || l.mode !== 'g1' || l.phase !== 'open' || l.buzz) return; // გაუქმება
+    if (teamsOn() && m.team == null) return;
     const key = buzzKeyOf(l, m, S.pid);
     if (buzzBlocked(l, key)) return;
     if (l.lastWrong && l.lastWrong !== key) l.lastWrong = null;
@@ -189,7 +189,7 @@ function render() {
   const myScore = scoreMap(S.awarded)[S.pid] || 0;
   const t = m.team, tOn = teamsOn();
   let score = myScore, sub = '';
-  if (tOn && mode === 'g1') sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`; // გუნდები მხოლოდ თამაშ 1-ში
+  if (tOn && mode === 'g1' && t != null) sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`; // გუნდები მხოლოდ თამაშ 1-ში
   const teamPts = mode === 'g1' && tOn;
   if (teamPts) score = teamScore(S.teams, t);
   const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${teamPts ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${fmtPts(score)}<small>ქულა</small></div>` : '';
@@ -231,7 +231,8 @@ function joinHtml() {
 }
 
 function g1Html(m, l) {
-  if (!l.qid) return msg(m.avatar, pickText('wait_start', S.pid + 'g1'));
+  if (teamsOn() && (m.team == null || m.team >= teamCount())) return msg(m.avatar, 'მოელოდე, გუნდში გადანაწილებას', 'წამყვანი მალე გადაგანაწილებთ გუნდებში.');
+  if (!l.qid) return (teamsOn() ? `<div class="teamhello" style="--t:${TEAM_HUES[m.team]}">შენი გუნდი<b>${esc(teamName(S.teams, m.team))}</b></div>` : '') + msg(m.avatar, pickText('wait_start', S.pid + 'g1'));
   const b = l.buzz, seed = l.qid + S.pid, key = buzzKeyOf(l, m, S.pid), solo = key[0] === 'p';
   if (l.phase === 'open') {
     if (buzzBlocked(l, key)) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>${solo ? 'შენ უკვე სცადე' : 'თქვენმა გუნდმა უკვე სცადა'}. ახლა სხვებს აძლევენ შანსს.</small></div>`;

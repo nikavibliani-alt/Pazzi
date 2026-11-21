@@ -40,8 +40,10 @@ function handleSignals(l) {
     if (l.mode === 'g1' && l.buzz && (!p.buzz || p.buzz.pid !== l.buzz.pid) && l.qid === p.qid) SFX.play('buzz', qSfx(l));
     if (l.mode === 'g2' && l.qid === p.qid && p.phase !== 'revealed' && l.phase === 'revealed') { SFX.play('reveal', qSfx(l)); maybeWrongFx(l); }
     if (l.mode === 'g2' && l.view === 'scoreboard' && p.view !== 'scoreboard') SFX.play('scoreboard', qSfx(l));
-    if (l.mode === 'final' && p.mode === 'final' && (l.step || 0) > (p.step || 0)) SFX.play(finalSteps()[(l.step || 1) - 1] === 'loser' ? 'loser' : 'podium');
+
   }
+  // გუნდის ეფექტი: სწორი პასუხის შემდეგ ჯერ „სწორია!“ ბარათი ქრება, მერე ჩანს სვეტი
+  if (p) Object.entries(l.tfx || {}).forEach(([team, f]) => { const o = (p.tfx || {})[team]; if (f && f.at && (!o || o.at !== f.at)) setTimeout(() => teamFx(Number(team), f), l.phase === 'right' ? 2700 : 60); });
   prevLive = JSON.parse(JSON.stringify(l));
 }
 
@@ -54,8 +56,9 @@ async function loadImg(id) {
   lastHtml = null; render();
 }
 db.ref('session').on('value', s => { S.session = s.val(); render(); });
-db.ref('players').on('value', s => { S.players = cleanPlayers(s.val()); render(); });
+db.ref('players').on('value', s => { S.players = cleanPlayers(s.val()); if (S.live && S.live.phase === 'answering') autoLock(S.players, S.answers); render(); });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
+db.ref('tstreak').on('value', s => { S.tstreak = s.val() || {}; render(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
 let tvStreakQ = null, shownStreak = {};
@@ -77,7 +80,7 @@ db.ref('live').on('value', s => {
     if (S.curQ) db.ref('answers/' + S.curQ).off();
     S.curQ = l.qid || null; S.answers = {};
     if (S.curQ) {
-      db.ref('answers/' + S.curQ).on('value', a => { S.answers = a.val() || {}; render(); });
+      db.ref('answers/' + S.curQ).on('value', a => { S.answers = a.val() || {}; if (S.live.phase === 'answering') autoLock(S.players, S.answers); render(); });
       if (l.q && l.q.img) loadImg(l.q.img);
       if (SFX.ctx && l.q && l.q.sfx) SFX.preload(l.q.sfx);
     }
@@ -129,22 +132,65 @@ function render() {
     const pl = Object.values(S.players);
     h = `<div class="scr">${logoHtml().replace('class="logo"', 'class="logo pop"')}<div class="sub">გახსენი ტელეფონზე: <b>${esc(joinInfo())}</b></div><div class="sub">თამაშის კოდი</div><div class="code pop">${esc(S.session ? S.session.code : '····')}</div><div class="chips">${pl.map(p => `<span class="chip pop"><span class="pic">${av(p.avatar)}</span>${esc(p.name)}</span>`).join('')}</div></div>`;
   } else if (mode === 'break') {
-    h = `<div class="scr"><div class="title pop">შესვენება</div><div class="sub">სასმელი, საჭმელი, ქირქილი!</div>${teamsStrip(true)}</div>`;
+    h = `<div class="scr"><div class="title pop">შესვენება</div><div class="sub">სასმელი, საჭმელი, ქირქილი!</div>${teamCols(null)}</div>`;
   } else if (mode === 'g1') h = g1();
   else if (mode === 'g2') h = g2();
-  view(h, mode + '|' + (l.qid || '') + '|' + (l.phase || '') + '|' + (l.buzz ? l.buzz.pid : ''));
+  view(h, mode + '|' + (l.qid || '') + '|' + (l.phase || '') + '|' + (l.buzz ? l.buzz.pid : '') + '|' + ((l.media || {}).show || ''));
+  placeVideo();
 }
 
 function g1() {
-  const l = S.live, q = l.q;
-  if (!l.qid || !q) return `<div class="scr"><div class="title pop">ბლიც კითხვები</div>${teamsStrip(true)}</div>`;
+  const l = S.live, q = l.q || {}, show = (l.media || {}).show;
+  if (l.qid && show && ((show === 'img' && q.img) || (show === 'video' && q.vid))) return mediaFull(q, show);
   let over = '';
   const b = l.buzz;
-  if (b) {
-    over = `<div class="buzzcard"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div>${teamsOn() ? `<div class="tn rise" style="background:${TEAM_HUES[b.team]}">${esc(teamName(S.teams, b.team))}</div>` : ''}${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}${l.phase === 'right' && l.reveal ? `<div class="ans rise">${esc(l.reveal.answer)}</div>` : ''}</div>`;
-  }
-  const ansBox = (!b && l.reveal) ? `<div class="ansbox pop">${esc(l.reveal.answer)}</div>` : '';
-  return `<div class="scr ${q.img ? 'hasimg' : ''}">${over}${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${q.snd ? `<div class="sub">${ico('music')} გამოიცანი სიმღერა!</div>` : ''}${ansBox}${l.phase === 'missed' ? '<div class="cnt">ამ კითხვაზე ღილაკი დაიკეტა</div>' : ''}<div style="flex:${q.img ? 0 : 1}"></div>${teamsStrip(false, l)}</div>`;
+  if (b) over = `<div class="buzzcard ${l.phase === 'right' ? 'won' : ''}" style="${teamsOn() ? `background:${TEAM_HUES[b.team] || 'var(--bg)'}` : ''}"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div>${teamsOn() ? `<div class="tn rise">${esc(teamName(S.teams, b.team))}</div>` : ''}${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}</div>`;
+  return `<div class="scr g1scr">${over}<div class="title pop" style="font-size:calc(var(--u)*3.6)">ბლიცი</div>${l.phase === 'missed' ? '<div class="cnt">ამ კითხვაზე ღილაკი დაიკეტა</div>' : ''}${teamCols(l)}</div>`;
+}
+// გუნდების სვეტები: ქულა ზემოთ, სვეტი იზრდება ყოველ ქულაზე; სერიაზე ცეცხლი
+function teamCols(l) {
+  let cols;
+  if (teamsOn()) cols = Array.from({ length: teamCount() }, (_, i) => ({ key: 't' + i, i, name: teamName(S.teams, i), score: teamScore(S.teams, i), hue: TEAM_HUES[i], fire: teamFireLevel(((S.tstreak || {})[i] || {}).c || 0) }));
+  else cols = ranking(S.players, S.awarded).slice(0, 8).map(p => ({ key: 'p' + p.id, i: -1, name: p.name, score: p.score, hue: 'var(--pink-l)', fire: '' }));
+  const max = Math.max(5, ...cols.map(c => c.score));
+  return `<div class="cols3" style="--n:${Math.max(1, cols.length)}">${cols.map(c => `<div class="tcolv ${l && tried(l, c.key) ? 'out' : ''} ${c.fire ? 'fire-' + c.fire : ''}" data-team="${c.i}"><div class="tscore">${fmtPts(c.score)}<small>ქულა</small></div><div class="tbarwrap"><div class="tbar" style="height:${Math.max(4, Math.round(100 * Math.max(0, c.score) / max))}%;background:${c.hue}">${c.fire ? FLAMES : ''}</div></div><div class="tname"><span class="ttag" style="--t:${c.hue}">${esc(c.name)}</span></div></div>`).join('')}</div>`;
+}
+const FLAMES = '<svg class="flames" viewBox="0 0 100 70" preserveAspectRatio="none" aria-hidden="true"><path class="f1" d="M10 70 C 8 50 22 44 18 26 C 30 36 32 48 34 54 C 38 40 36 22 48 6 C 52 26 62 30 60 50 C 66 42 70 34 68 22 C 82 36 92 52 88 70 Z" fill="#FFB238"/><path class="f2" d="M22 70 C 22 56 32 52 30 40 C 40 48 40 56 42 60 C 46 50 46 38 54 28 C 58 42 64 48 62 60 C 68 54 72 48 72 40 C 80 50 82 60 78 70 Z" fill="#FF6A3D"/><path class="f3" d="M36 70 C 36 62 44 58 44 50 C 50 56 50 62 52 64 C 54 58 56 52 60 48 C 64 56 66 62 64 70 Z" fill="#FFE2A8"/></svg>';
+// სვეტის ერთჯერადი ეფექტები (ცალკე ფენა — ხელახალი დახატვა არ შლის)
+function teamFx(team, f) {
+  const col = app.querySelector(`.tcolv[data-team="${team}"]`), cfg = teamStreakCfg();
+  if (cfg.on === false) return;
+  const step = f.kind === 'end' ? null : ((f.kind === 'c' ? cfg.correct : cfg.wrong) || {})[f.n];
+  const eff = f.kind === 'end' ? 'smoke' : step && step.effect;
+  if (step && step.sound) SFX.preview(step.sound, 'right');
+  if (step && step.media && (step.media.url || step.media.id)) showMedia({ url: step.media.url, id: step.media.id, kind: step.media.type === 'video' ? 'video' : 'img' }, step.dur, teamName(S.teams, team));
+  if (!eff) return;
+  if (FX_LIST.some(x => x[0] === eff)) return runFx(eff, { text: step.text });
+  if (!col) return;
+  const r = col.querySelector('.tbar').getBoundingClientRect(), L = document.createElement('div');
+  L.className = 'colfx colfx-' + eff; L.style.cssText = `left:${r.left}px;top:${Math.min(r.top, innerHeight * .7) - 40}px;width:${r.width}px;height:${Math.max(r.height, 120) + 40}px`;
+  if (eff === 'sparks' || eff === 'colfireworks') L.innerHTML = Array.from({ length: eff === 'sparks' ? 14 : 34 }, () => `<i style="--x:${(Math.random() * 2 - 1).toFixed(2)};--y:${(-.4 - Math.random()).toFixed(2)};--c:${FX_COLORS[Math.floor(Math.random() * FX_COLORS.length)]};animation-delay:${(Math.random() * (eff === 'sparks' ? .2 : .9)).toFixed(2)}s"></i>`).join('');
+  if (eff === 'smoke') L.innerHTML = Array.from({ length: 7 }, (_, k) => `<b style="--x:${(k - 3) * 12}%;animation-delay:${k * .05}s"></b>`).join('');
+  if (eff === 'shiver') { col.classList.remove('shiver'); void col.offsetWidth; col.classList.add('shiver'); setTimeout(() => col.classList.remove('shiver'), 1600); }
+  if (eff === 'flames' || eff === 'bigflames') L.innerHTML = Array.from({ length: 10 }, () => `<i style="--x:${(Math.random() * 2 - 1).toFixed(2)};--y:${(-.4 - Math.random()).toFixed(2)};--c:#FFB238"></i>`).join('');
+  document.body.appendChild(L); setTimeout(() => L.remove(), eff === 'colfireworks' ? 2600 : 1600);
+}
+// სურათი ან ვიდეო მთელ ეკრანზე (წამყვანი აჭერს „ჩვენებას“)
+function mediaFull(q, kind) {
+  if (kind === 'img') { if (q.img) loadImg(q.img); return `<div class="scr mediafull"><div class="imgbox">${imgPh(q.img)}</div></div>`; }
+  loadVid(q.vid); return `<div class="scr mediafull"><div class="imgbox"><div class="qvid-ph" data-id="${esc(q.vid)}"></div></div></div>`;
+}
+const vidCache = {}; let vidNode = null;
+async function loadVid(id) {
+  if (!id || vidCache[id] !== undefined) return;
+  vidCache[id] = null; vidCache[id] = (await db.ref('libdata/vid/' + id).once('value')).val() || ''; lastHtml = null; render();
+}
+function placeVideo() {
+  const ph = app.querySelector('.qvid-ph');
+  if (!ph) { if (vidNode) { vidNode.pause(); vidNode = null; } return; }
+  const id = ph.dataset.id, data = vidCache[id]; if (!data) return;
+  if (!vidNode || vidNode.dataset.id !== id) { if (vidNode) vidNode.pause(); vidNode = document.createElement('video'); vidNode.className = 'qimg'; vidNode.dataset.id = id; vidNode.src = data; vidNode.playsInline = true; vidNode.play().catch(() => { vidNode.muted = true; vidNode.play().catch(() => {}); }); }
+  ph.replaceWith(vidNode);
 }
 
 function g2() {
@@ -157,7 +203,7 @@ function g2() {
   const votes = opts.map((_, i) => Object.values(S.answers).filter(a => q.type === 'multi' ? arr(a.a).includes(i) : Number(a.a) === i).length);
   let status;
   if (phase === 'answering') status = `<div class="cnt">უპასუხა ${answered}/${total}</div>`;
-  else if (phase === 'locked') status = `<div class="cnt">${ico('lock')} პასუხები დაიკეტა · ${answered}/${total}</div>`;
+  else if (phase === 'locked') status = l.autoLocked ? `<div class="cnt ok">ყველამ უპასუხა!</div>` : `<div class="cnt">${ico('lock')} პასუხები დაიკეტა · ${answered}/${total}</div>`;
   else {
     const rightIds = Object.keys((l.reveal && l.reveal.right) || {}).filter(p => S.players[p]);
     const got = Object.keys(S.awarded[l.qid] || {}).filter(p => S.players[p] && Number(S.awarded[l.qid][p]) > 0);
@@ -167,7 +213,10 @@ function g2() {
       status = ansTxt + `<div class="cnt ok">სწორად უპასუხა ${rightIds.length}-მა${got.length && got.length <= 6 ? ' · ქულა: ' + got.map(p => esc(S.players[p].name) + ' +' + fmtPts(S.awarded[l.qid][p])).join(', ') : ''}</div>`;
     }
   }
-  return `<div class="scr ${q.img ? 'hasimg' : ''}">${tvQCard(q)}${q.img ? tvImgBox(imgPh(q.img)) : ''}${tvOptions(q, { phase, corr, votes })}${status}</div>`;
+  const show = (l.media || {}).show;
+  if (show === 'video' && q.vid) return mediaFull(q, 'video');
+  const pic = show === 'img' && q.img;
+  return `<div class="scr ${pic ? 'hasimg' : ''}">${tvQCard(q)}${pic ? tvImgBox(imgPh(q.img)) : ''}${tvOptions(q, { phase, corr, votes })}${status}</div>`;
 }
 
 // ქულების ცხრილი: რიგები გადაადგილდებიან ახალ ადგილზე
@@ -202,19 +251,41 @@ function countUp(el, a, b, ms) {
   (function f(now) { const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3); el.textContent = fmtPts(a + (b - a) * e); if (k < 1) requestAnimationFrame(f); })(t0);
 }
 const LOSER_FALLBACK = 'ბოლო ადგილიც ადგილია!';
+let finShown = 0, finTimer = null, finDrum = null;
+const DRUM_MS = 2800;
+function finalSource(game) { // თამაში 1 → გუნდები, თამაში 2 → მონაწილეები
+  if (game === 1 && teamsOn()) return Array.from({ length: teamCount() }, (_, i) => ({ id: 't' + i, name: teamName(S.teams, i), score: teamScore(S.teams, i), hue: TEAM_HUES[i] })).sort((a, b) => b.score - a.score);
+  return ranking(S.players, S.awarded);
+}
+function stepsFor(game) { return game === 1 ? finalSteps().filter(x => x !== 'loser').slice(-Math.min(3, teamsOn() ? teamCount() : 3)) : finalSteps(); }
 function renderFinal() {
-  const l = S.live, step = l.step || 0, steps = finalSteps();
-  if (finKey !== 'final') {
-    finKey = 'final'; boardKey = null; lastHtml = null; lastKey = 'final'; enter();
-    const r = ranking(S.players, S.awarded), places = steps.filter(x => x[0] === 'p').length;
-    const slot = (i, cls, medal) => { if (i >= places) return ''; const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${fmtPts(p.score)} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
+  const l = S.live, step = l.step || 0, game = l.game === 1 ? 1 : 2, steps = stepsFor(game);
+  if (finKey !== 'final' + game) {
+    finKey = 'final' + game; boardKey = null; lastHtml = null; lastKey = 'final'; enter(); finShown = step; clearTimeout(finTimer);
+    const r = finalSource(game), places = steps.filter(x => x[0] === 'p').length;
+    const face = p => p.avatar ? `<div class="pic">${av(p.avatar)}</div>` : `<div class="pic teampic" style="background:${p.hue}"></div>`;
+    const slot = (i, cls, medal) => { if (i >= places) return ''; const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}">${face(p)}<div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${fmtPts(p.score)} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
     const last = steps.includes('loser') ? r[r.length - 1] : null;
-    swapScreen(app, `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
+    swapScreen(app, `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(game === 1 ? 'ბლიცის შედეგები' : pickText('podium_title', 'final'))}</div><div class="sub" id="drum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
       (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${fmtPts(last.score)} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>', 'slide');
   }
-  const shown = steps.slice(0, step);
+  if (step > finShown && !finTimer) { // დრამი → დარტყმა → სახელი
+    const d = document.getElementById('drum'); if (d) { d.style.display = ''; d.classList.add('rolling'); }
+    finDrum = SFX.playStoppable('drumroll');
+    finTimer = setTimeout(() => {
+      finTimer = null; finShown = S.live.step || 0; if (finDrum) finDrum.stop(); finDrum = null;
+      SFX.crash(); SFX.play(stepsFor(game)[finShown - 1] === 'loser' ? 'loser' : 'podium');
+      applyFinal(stepsFor(game)); renderFinal();
+    }, DRUM_MS);
+    return;
+  }
+  if (step < finShown) { finShown = step; clearTimeout(finTimer); finTimer = null; if (finDrum) finDrum.stop(); }
+  if (!finTimer) applyFinal(steps);
+}
+function applyFinal(steps) {
+  const shown = steps.slice(0, finShown);
   app.querySelectorAll('.pl').forEach(el => { el.classList.toggle('show', !!el.firstChild && shown.includes('p' + el.dataset.i)); });
-  const d = document.getElementById('drum'); if (d) d.style.display = step >= 1 ? 'none' : '';
+  const d = document.getElementById('drum'); if (d) { d.classList.remove('rolling'); d.style.display = finShown >= 1 ? 'none' : ''; }
   const lb = document.getElementById('loserbox'); if (lb) lb.classList.toggle('show', shown.includes('loser'));
 }
 function confetti(loser) {

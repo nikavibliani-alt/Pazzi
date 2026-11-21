@@ -547,3 +547,52 @@ body.phone { min-height: 100vh; min-height: 100dvh; padding: max(14px, env(safe-
 
 .fxtext { white-space: normal; max-width: 90vw; text-align: center; line-height: 1.15; }
 .fxstamp { font-size: clamp(34px, 11vmin, 180px); max-width: 92vw; }
+
+/* ტვ: ბლიცის გუნდების სვეტები */
+.tv .cols3 { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 2.4vw; align-items: stretch; padding: 0 2vw; }
+.tv .tcolv { display: flex; flex-direction: column; align-items: stretch; min-height: 0; transition: filter .3s, opacity .3s; }
+.tv .tcolv.out { opacity: .45; }
+.tv .tscore { text-align: center; font-family: var(--head); font-weight: 800; font-size: 6vw; line-height: 1; }
+.tv .tscore small { display: block; font-size: 1.6vw; color: var(--muted); font-weight: 700; margin-top: .3vh; }
+.tv .tbarwrap { flex: 1; min-height: 0; display: flex; align-items: flex-end; margin-top: 1.4vh; }
+.tv .tbar { position: relative; width: 100%; border-radius: 1.6vw 1.6vw .6vw .6vw; box-shadow: var(--shadow); transition: height .7s cubic-bezier(.3, 1.4, .5, 1); min-height: 2vh; }
+.tv .tname { text-align: center; margin-top: 1.4vh; font-size: 2.4vw; }
+.tv .tname .ttag { padding: .15em .9em; }
+.tv .flames { position: absolute; left: -6%; width: 112%; bottom: 100%; height: 9vh; pointer-events: none; overflow: visible; }
+.tv .flames path { transform-origin: 50% 100%; animation: flick .5s ease-in-out infinite alternate; }
+.tv .flames .f2 { animation-duration: .38s; } .tv .flames .f3 { animation-duration: .3s; }
+@keyframes flick { from { transform: scaleY(.85) skewX(-3deg); } to { transform: scaleY(1.12) skewX(3deg); } }
+.tv .tcolv.fire-bigflames .flames { height: 16vh; }
+.tv .tcolv.fire-bigflames .tbar { box-shadow: 0 0 3vw rgba(255, 140, 50, .75), 0 0 1vw rgba(255, 200, 80, .9); }
+.tv .tcolv.shiver { animation: shiverX .12s linear 10; filter: grayscale(1); }
+@keyframes shiverX { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-.5vw); } 75% { transform: translateX(.5vw); } }
+.tv .teampic { border-radius: 50%; }
+.tv .mediafull .imgbox { flex: 1; }
+.tv .mediafull video.qimg { max-height: 100%; }
+#drum.rolling { display: block !important; animation: drumPulse .13s ease-in-out infinite alternate; font-size: 6vw; }
+@keyframes drumPulse { from { transform: scale(1); } to { transform: scale(1.08); } }
+.colfx { position: fixed; z-index: 70; pointer-events: none; }
+.colfx i { position: absolute; left: 50%; bottom: 0; width: .8vw; height: .8vw; border-radius: 50%; background: var(--c); animation: spark 1.1s ease-out both; }
+@keyframes spark { from { transform: translate(-50%, 0) scale(1); opacity: 1; } to { transform: translate(calc(-50% + var(--x) * 8vw), calc(var(--y) * 22vh)) scale(.3); opacity: 0; } }
+.colfx-colfireworks i { width: 1vw; height: 1vw; animation-duration: 1.4s; }
+.colfx b { position: absolute; left: calc(50% + var(--x)); bottom: 10%; width: 5vw; height: 5vw; border-radius: 50%; background: rgba(150, 140, 150, .55); filter: blur(6px); animation: smoke 1.4s ease-out both; }
+@keyframes smoke { from { transform: translate(-50%, 0) scale(.4); opacity: .9; } to { transform: translate(-50%, -14vh) scale(1.8); opacity: 0; } }
+
+/* წამყვანი: გუნდების დაფა */
+.teamboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.tcol { border-radius: 16px; padding: 10px; background: color-mix(in srgb, var(--t, #fff) 35%, #fff); border: 2px solid var(--t, var(--pink-l)); min-height: 120px; display: flex; flex-direction: column; gap: 8px; transition: box-shadow var(--ease); }
+.tcol.nogroup { background: #fff; border-style: dashed; --t: var(--pink-l); }
+.tcol.over { box-shadow: 0 0 0 3px var(--pink); }
+.tcol .tname-in { height: 36px; font-weight: 800; background: #fff; }
+.tchips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; align-content: flex-start; }
+.tchip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border-radius: 999px; padding: 3px 10px 3px 3px; font-weight: 700; font-size: 14px; cursor: grab; box-shadow: 0 2px 6px rgba(58, 15, 42, .08); }
+.tchip .pic { width: 24px; height: 24px; }
+.tchip.off { opacity: .55; }
+.mediapanel { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; padding: 10px; border-radius: 14px; background: var(--bg); }
+.mediapanel .muted { display: inline-flex; gap: 6px; align-items: center; font-weight: 700; font-size: 14px; }
+
+.phone .teamhello { margin: 6px 0 0; border-radius: 18px; padding: 14px; text-align: center; background: var(--t, var(--pink-l)); font-size: 16px; font-weight: 700; }
+.phone .teamhello b { display: block; font-size: clamp(24px, 7vw, 32px); font-weight: 800; }
+
+.tv .buzzcard.won { animation: cardAway .45s ease-in 2.3s forwards; }
+@keyframes cardAway { to { opacity: 0; visibility: hidden; } }

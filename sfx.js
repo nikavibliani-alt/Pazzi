@@ -31,10 +31,31 @@ const SFX = {
     buzz() { SFX.tone(300, 0, .12, 'sine', .35, 720); SFX.tone(720, .12, .18, 'sine', .3, 240); SFX.tone(900, 0, .05, 'square', .06); },
     reveal() { for (let i = 0; i < 12; i++) SFX.tone(160 + i * 6, i * .06, .06, 'triangle', .25); [523, 659, 784].forEach(f => SFX.tone(f, .8, .6, 'square', .07)); },
     scoreboard() { [523, 659, 784, 1047].forEach((f, i) => SFX.tone(f, i * .09, .25, 'triangle', .22)); },
+    // დრამის დარტყმები (~2.6 წმ), ბოლოს ქინძისთავი — მხოლოდ თუ Mixkit-ის ხმა არ არის
+    drumroll() { for (let i = 0; i < 40; i++) { const t = i * .065, v = .05 + .25 * (i / 40); SFX.noise(t, .06, v, 900 + i * 30); SFX.tone(110 + (i % 2) * 6, t, .05, 'triangle', v * .6); } },
     podium() { SFX.tone(392, 0, .2, 'sawtooth', .1); SFX.tone(523, .22, 1, 'sawtooth', .1); SFX.tone(659, .22, 1, 'sawtooth', .08); SFX.tone(784, .22, 1, 'sawtooth', .08); },
     loser() { SFX.tone(1200, 0, .6, 'sine', .25, 200); SFX.bone(110, .65, .9, 80, true); }
   },
   libMeta: {},
+  noise(start, dur, vol, freq) {
+    const c = this.ctx; if (!c) return;
+    const n = Math.max(1, Math.floor(c.sampleRate * dur)), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t0 = c.currentTime + start;
+    f.type = 'bandpass'; f.frequency.value = freq || 1200; f.Q.value = .8; g.gain.value = vol;
+    s.buffer = b; s.connect(f).connect(g).connect(c.destination); s.start(t0);
+  },
+  // დარტყმა / ქინძისთავი სახელის გამოჩენისას
+  crash() { const c = this.ctx; if (!c) return; this.noise(0, 1.6, .35, 6000); this.noise(0, .25, .5, 300); this.tone(60, 0, .4, 'sine', .4, 40); },
+  // შეჩერებადი ხმა (დრამი): ბიბლიოთეკის ხმა ან ჩაშენებული
+  playStoppable(event) {
+    if (!this.ctx) return { stop() {} };
+    const m = ((CFG && CFG.sounds) || {})[event] || 'default';
+    if (m === 'none') return { stop() {} };
+    const b = m !== 'default' && this.buffers[m];
+    if (b) { const s = this.ctx.createBufferSource(), g = this.ctx.createGain(); s.buffer = b; s.connect(g).connect(this.ctx.destination); s.start(); return { stop: () => { try { g.gain.setTargetAtTime(0, this.ctx.currentTime, .08); s.stop(this.ctx.currentTime + .4); } catch (e) {} } }; }
+    this.defaults[event] && this.defaults[event](); return { stop() {} };
+  },
   idOf(v) { if (!v || v === 'default' || v === 'none') return v; if (this.libMeta[v]) return v; const e = Object.entries(this.libMeta).find(([, m]) => m && m.name === v); return e ? e[0] : null; },
   async loadLib(id) {
     if (!this.ctx || this.buffers[id] !== undefined) return;
