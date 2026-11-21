@@ -47,8 +47,10 @@ const SFX = {
     const s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start(); return true;
   },
   // მოვლენის ხმა კონფიგურაციის მიხედვით
-  play(event) {
+  // over = კითხვის საკუთარი ხმები ({ right: libId, ... }); თუ არ არის — თამაშის ნაგულისხმევი
+  play(event, over) {
     if (!this.ctx) return;
+    if (over && over[event] && this.playBuffer(over[event])) return;
     const m = ((CFG && CFG.sounds) || {})[event] || 'default';
     if (m === 'none') return;
     if (m !== 'default' && this.playBuffer(m)) return;

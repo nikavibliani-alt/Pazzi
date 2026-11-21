@@ -9,26 +9,38 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body class="admin">
+<body class="admin app">
 <div id="gate">
   <div id="gateLogo"></div>
-  <p class="muted" style="font-weight:800">PIN-კოდი</p>
+  <p class="muted" style="font-weight:700">PIN-კოდი</p>
   <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
   <button class="btn primary block lg" id="pinBtn">შესვლა</button>
   <div class="err" id="pinErr"></div>
 </div>
-<div id="app" hidden>
-  <div class="topbar">
-    <div id="topLogo"></div>
-    <span class="badge">ადმინი</span>
-    <div class="tabs"><button data-tab="quiz">ქვიზები და კითხვები</button><button data-tab="images">სურათები</button><button data-tab="sounds">ხმები</button><button data-tab="settings">პარამეტრები</button></div>
+<div id="app" class="shell" hidden>
+  <aside class="side">
+    <div id="sideLogo"></div>
+    <button class="nav" data-sec="quiz"><i data-lucide="list-checks"></i>ქვიზები და კითხვები</button>
+    <button class="nav" data-sec="images"><i data-lucide="image"></i>სურათები</button>
+    <button class="nav" data-sec="sounds"><i data-lucide="volume-2"></i>ხმები</button>
+    <button class="nav" data-sec="settings"><i data-lucide="settings"></i>პარამეტრები</button>
+    <div class="side-foot shortcuts">ცვლილებები ავტომატურად ინახება.</div>
+  </aside>
+  <div class="main">
+    <header class="topbar2"><h1 id="pageTitle"></h1><span class="chip ok" id="saveBadge"></span><span class="chip" id="quizChip"></span></header>
+    <main class="content" id="view"></main>
   </div>
-  <main class="page" id="view"></main>
 </div>
+<aside class="drawer" id="drawer" aria-label="კითხვის რედაქტორი">
+  <div class="drawer-head"><h2 id="drawerTitle">კითხვა</h2><button class="btn quiet icon" data-a="closeed" data-tip="დახურვა (Esc)"><i data-lucide="x"></i></button></div>
+  <div class="drawer-body" id="edBody"></div>
+</aside>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="avatars.js"></script>
 <script src="common.js"></script>
+<script src="ui.js"></script>
 <script src="sfx.js"></script>
 <script src="tvview.js"></script>
 <script src="admin.js"></script>

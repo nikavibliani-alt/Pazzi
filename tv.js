@@ -11,7 +11,7 @@ watchConfig(() => {
   lastHtml = null; render();
 });
 $('#soundBtn').onclick = () => {
-  SFX.enable(); SFX.preload(CFG.sounds);
+  SFX.enable(); SFX.preload(CFG.sounds); SFX.preload(qSfx(S.live));
   $('#sound').remove();
   SFX.tone(880, 0, .12, 'triangle', .15);
 };
@@ -28,17 +28,18 @@ async function playClip() {
 
 // ხმა: სიგნალები წამყვანისგან და გადასვლები. გვერდის გახსნისას პირველ მდგომარეობას არ ვუკრავთ.
 let seenSfx, seenAudio, prevLive = null;
+const qSfx = l => (l && l.q && l.q.sfx) || null; // კითხვის საკუთარი ხმები
 function handleSignals(l) {
   const sfx = l.sfx && l.sfx.n, au = l.audio && l.audio.n;
   if (seenSfx === undefined) seenSfx = sfx || 0;
-  else if (sfx && sfx !== seenSfx) { seenSfx = sfx; SFX.play(l.sfx.kind === 'right' ? 'right' : 'wrong'); }
+  else if (sfx && sfx !== seenSfx) { seenSfx = sfx; SFX.play(l.sfx.kind === 'right' ? 'right' : 'wrong', qSfx(l)); }
   if (seenAudio === undefined) seenAudio = au || 0;
   else if (au && au !== seenAudio) { seenAudio = au; if (l.audio.cmd === 'play') playClip(); else stopClip(); }
   const p = prevLive;
   if (p) {
-    if (l.mode === 'g1' && l.buzz && (!p.buzz || p.buzz.pid !== l.buzz.pid) && l.qid === p.qid) SFX.play('buzz');
-    if (l.mode === 'g2' && l.qid === p.qid && p.phase !== 'revealed' && l.phase === 'revealed') SFX.play('reveal');
-    if (l.mode === 'g2' && l.view === 'scoreboard' && p.view !== 'scoreboard') SFX.play('scoreboard');
+    if (l.mode === 'g1' && l.buzz && (!p.buzz || p.buzz.pid !== l.buzz.pid) && l.qid === p.qid) SFX.play('buzz', qSfx(l));
+    if (l.mode === 'g2' && l.qid === p.qid && p.phase !== 'revealed' && l.phase === 'revealed') SFX.play('reveal', qSfx(l));
+    if (l.mode === 'g2' && l.view === 'scoreboard' && p.view !== 'scoreboard') SFX.play('scoreboard', qSfx(l));
     if (l.mode === 'final' && p.mode === 'final' && (l.step || 0) > (p.step || 0)) SFX.play((l.step || 0) >= 4 ? 'loser' : 'podium');
   }
   prevLive = JSON.parse(JSON.stringify(l));
@@ -66,6 +67,7 @@ db.ref('live').on('value', s => {
     if (S.curQ) {
       db.ref('answers/' + S.curQ).on('value', a => { S.answers = a.val() || {}; render(); });
       if (l.q && l.q.img) loadImg(l.q.img);
+      if (SFX.ctx && l.q && l.q.sfx) SFX.preload(l.q.sfx);
     }
   }
   render();
