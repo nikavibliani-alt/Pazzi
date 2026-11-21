@@ -20,10 +20,10 @@ const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const arr = v => Array.isArray(v) ? v.filter(x => x != null) : Object.values(v || {});
 
-// ფერები: ვარდისფერი + პასტელები
-const TEAM_COLORS = ['#ff2e88', '#b5ecd8', '#d6cbff', '#ffe58a'];
-const TEAM_TEXT = ['#fff', '#34102b', '#34102b', '#34102b'];
-const OPT_COLORS = ['#ffc2dd', '#d6cbff', '#b5ecd8', '#ffeaa0', '#bfe0ff', '#ffd3b8'];
+// ფერები: მუქი ფონი, ერთი ვარდისფერი აქცენტი (CSS-ში)
+const TEAM_COLORS = ['#1b1820', '#1b1820', '#1b1820', '#1b1820'];
+const TEAM_TEXT = ['#f3f0f4', '#f3f0f4', '#f3f0f4', '#f3f0f4'];
+const OPT_COLORS = ['#1b1820', '#1b1820', '#1b1820', '#1b1820', '#1b1820', '#1b1820'];
 const LETTERS = ['ა', 'ბ', 'გ', 'დ', 'ე', 'ვ'];
 const DEFAULT_GAME_NAME = 'ფაციფუცობანა';
 const DEFAULT_PIN = '5813';
@@ -67,13 +67,10 @@ function pickText(key, seed, name) {
   return String(l[hashStr(String(seed) + key) % l.length]).replace(/\{name\}/g, name || '');
 }
 
-// ლოგო
+// ლოგო: სუფთა წარწერა + ერთი ვარდისფერი კითხვის ნიშანი
 function logoHtml(name) {
   name = name || gameName();
-  const cols = ['#ff2e88', '#ff2e88', '#ffd24d', '#ff2e88', '#7fdcc0', '#ff2e88'];
-  const ys = [0, -.06, .04, -.03, .05, -.05], rots = [-4, 3, -2, 4, -3, 2];
-  const ch = [...name].map((c, i) => c === ' ' ? '<span style="width:.3em"></span>' : `<span class="ch" style="color:${cols[i % 6]};--y:${ys[i % 6]}em;--rot:${rots[i % 6]}deg">${esc(c)}</span>`).join('');
-  return `<div class="logo">${av('khinkali', 'mas')}<span class="word">${ch}</span>${av('tomato', 'mas')}</div>`;
+  return `<div class="logo"><span class="word">${esc(name)}</span><span class="q">?</span></div>`;
 }
 
 // ───────── ქულები ─────────

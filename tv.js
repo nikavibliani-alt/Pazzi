@@ -174,7 +174,7 @@ function renderFinal() {
   if (finKey !== 'final') {
     finKey = 'final'; boardKey = null; lastHtml = null; lastKey = 'final'; enter();
     const r = ranking(S.players, S.awarded);
-    const slot = (i, cls, medal) => { const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--pink-d)">${p.score} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
+    const slot = (i, cls, medal) => { const p = r[i]; return p ? `<div class="pl ${cls}" data-i="${i}"><div class="pic">${av(p.avatar)}</div><div class="nm">${esc(p.name)}</div><div class="nm" style="font-size:calc(var(--u)*2.2);color:var(--muted)">${p.score} ქულა</div><div class="bar">${medal}</div></div>` : `<div class="pl ${cls}" data-i="${i}"></div>`; };
     const last = r[r.length - 1];
     app.innerHTML = `<div class="scr"><div class="title pop" style="font-size:calc(var(--u)*4.6)">${esc(pickText('podium_title', 'final'))}</div><div class="sub" id="drum">🥁 🥁 🥁</div><div class="podium">${slot(1, 'b2', 2)}${slot(0, 'b1', 1)}${slot(2, 'b3', 3)}</div>` +
       (last ? `<div class="loserbox" id="loserbox"><div class="sub">და ბოლო ადგილს იკავებს...</div><div class="pic">${av(last.avatar)}</div><div class="nm title" style="-webkit-text-stroke:0;text-shadow:none;color:var(--ink)">${esc(last.name)}</div><div class="sub">${last.score} ქულა</div><div class="tx">${esc(pickText('loser', 'loser' + last.name, last.name))}</div></div>` : '') + '</div>';
@@ -186,6 +186,8 @@ function renderFinal() {
   if (step >= 3 && finKey === 'final' && (renderFinal.conf || 0) !== step) { renderFinal.conf = step; confetti(step >= 4); }
 }
 function confetti(loser) {
+  return; // დეკორაციის გარეშე
+
   const em = loser ? ['🥔', '😂', '💖', '🎈'] : ['🎉', '✨', '🎊', '⭐', '💖'];
   for (let i = 0; i < 30; i++) {
     const d = document.createElement('div'); d.className = 'fall'; d.textContent = em[i % em.length];
