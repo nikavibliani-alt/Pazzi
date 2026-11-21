@@ -42,13 +42,50 @@ const ICONS = {
   drum: '<ellipse cx="12" cy="8" rx="8" ry="3"/><path d="M4 8v8c0 1.7 3.6 3 8 3s8-1.3 8-3V8M9 4L6 1M15 4l3-3"/>'
 };
 const ico = n => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+// მზა ხმების ნაკრებები (Mixkit) — სახელით, ბიბლიოთეკაში ეძებს
+const SOUND_PACKS = {
+  funny: { right: 'Arcade game complete or approved mission', wrong: 'Game show wrong answer buzz', partly: 'Retro arcade casino notification', buzz: 'Game show buzz in', reveal: 'Funny alarm loop', scoreboard: 'Retro arcade casino notification', podium: 'End of show clapping crowd', loser: 'Musical game over' },
+  serious: { right: 'Correct answer reward', wrong: 'Wrong answer bass buzzer', partly: 'Correct positive notification', buzz: 'Game show buzz in', reveal: 'Musical reveal', scoreboard: 'Game show suspense waiting', podium: 'Medieval show fanfare announcement', loser: 'Ominous drums' }
+};
+// სერიები (ზედიზედ სწორი / არასწორი) — ნაგულისხმევი; ადმინში იცვლება. sound = ბიბლიოთეკის ხმის სახელი ან id
+const DEFAULT_STREAKS = {
+  on: true,
+  correct: {
+    3: { media: { type: 'url', url: 'https://media1.tenor.com/m/QQD8UFMR8EsAAAAd/%D0%BA%D0%B0%D0%B2%D0%BA%D0%B0%D0%B7-%D0%BB%D0%B5%D0%B7%D0%B3%D0%B8%D0%BD%D0%BA%D0%B0.gif' }, dur: 2, sound: 'Correct answer tone', where: 'phone' },
+    4: { media: { type: 'url', url: 'https://media.tenor.com/3Dp_CACW64oAAAAM/cat-clapping-ai-cat-clapping.gif' }, dur: 'once', sound: 'Arcade game complete or approved mission', where: 'phone' },
+    5: { media: { type: 'url', url: 'https://media1.tenor.com/m/B7vSc-79QXAAAAAd/mindblow-mind-explosion.gif' }, dur: 3, effect: 'fireworks', sound: 'Medieval show fanfare announcement', where: 'phone' }
+  },
+  wrong: {
+    2: { effect: 'shake', text: 'ორჯერ ზედიზედ', sound: 'Negative answer lose', dur: 2, where: 'phone' },
+    3: { effect: 'tomatoes', sound: 'Musical game over', dur: 3, where: 'phone' },
+    4: { where: 'phone', dur: 2 },
+    5: { where: 'phone', dur: 2 }
+  }
+};
+function streakCfg() { const c = CFG.streaks; return c && (c.correct || c.wrong || c.on === false) ? c : DEFAULT_STREAKS; }
+// ზედიზედ სწორი (c) / არასწორი (w): კითხვები გამოაშკარავების დროის მიხედვით; ნაწილობრივი (p) სერიას არ ცვლის
+function streakOf(results, pid) {
+  let c = 0, w = 0;
+  Object.values(results || {}).filter(r => r && r._t).sort((a, b) => a._t - b._t).forEach(r => {
+    const v = r[pid]; if (v === 'c') { c++; w = 0; } else if (v === 'w') { w++; c = 0; }
+  });
+  return { c, w };
+}
+// ამ კითხვის შედეგი სერიის რომელიმე საფეხურს ემთხვევა? → { kind, n, step }
+function streakHit(results, qid, pid) {
+  const cfg = streakCfg(); if (cfg.on === false || !results || !results[qid]) return null;
+  const v = results[qid][pid]; if (v !== 'c' && v !== 'w') return null;
+  const s = streakOf(results, pid), kind = v === 'c' ? 'correct' : 'wrong', n = v === 'c' ? s.c : s.w;
+  const step = (cfg[kind] || {})[n];
+  return step && (step.media || step.effect || step.sound || step.text) ? { kind, n, step } : null;
+}
 const LETTERS = ['ა', 'ბ', 'გ', 'დ', 'ე', 'ვ'];
 const DEFAULT_GAME_NAME = 'ფაციფუცობანა';
 const DEFAULT_PIN = '5813';
 
 // ხმის მოვლენები (ადმინში თითოეულზე ირჩევ ხმას)
 const SOUND_EVENTS = [
-  ['right', 'სწორი პასუხი'], ['wrong', 'არასწორი პასუხი'], ['buzz', 'ვიღაცამ დააჭირა ღილაკს'],
+  ['right', 'სწორი პასუხი'], ['wrong', 'არასწორი პასუხი'], ['partly', 'ნაწილობრივ სწორი'], ['buzz', 'ვიღაცამ დააჭირა ღილაკს'],
   ['reveal', 'კითხვის გამოაშკარავება'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['loser', 'ბოლო ადგილის გამოცხადება']
 ];
 
@@ -162,15 +199,17 @@ function autoMatch(given, expected) { const g = normAns(given); return !!g && St
 const ansOrder = (x, y) => ((x[1].seq || 1e9) - (y[1].seq || 1e9)) || ((x[1].t || 0) - (y[1].t || 0));
 // კითხვის ქულები წესების მიხედვით → { aw: {pid: ქულა}, right: {pid: true}, first: pid }
 function scoreQuestion(q, entries, r) {
-  const aw = {}, right = {};
+  const aw = {}, right = {}, frac = {};
   let first = null;
-  if (!q || q.type === 'poll') return { aw, right, first };
+  if (!q || q.type === 'poll') return { aw, right, first, frac };
   const pf = Number(r.ptsFirst) || 0, po = Number(r.ptsOther) || 0, pen = Number(r.penalty) || 0, corr = arr(q.correct).map(Number);
+  const fr = frac;
   entries.slice().sort(ansOrder).forEach(([pid, a]) => {
     let frac = 0;
     if (q.type === 'text') frac = (a.ok === true || (a.ok === undefined && r.typed === 'auto' && autoMatch(a.a, q.answer))) ? 1 : 0;
     else if (q.type === 'multi' && r.multi !== 'exact') { const mine = arr(a.a).map(Number), hit = mine.filter(i => corr.includes(i)).length, miss = mine.length - hit; frac = corr.length ? Math.max(0, (hit - miss) / corr.length) : 0; }
     else frac = isCorrectChoice(q, a.a) ? 1 : 0;
+    fr[pid] = frac;
     if (frac <= 0) { if (pen) aw[pid] = -pen; return; }
     right[pid] = true;
     let v;
@@ -179,7 +218,7 @@ function scoreQuestion(q, entries, r) {
     v = Math.round(v * 100) / 100;
     if (v) aw[pid] = v;
   });
-  return { aw, right, first };
+  return { aw, right, first, frac: fr };
 }
 
 // ───────── ეკრანი არ ჩაქრეს (Screen Wake Lock + სათადარიგო ვიდეო) ─────────

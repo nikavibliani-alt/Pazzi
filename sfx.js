@@ -24,7 +24,9 @@ const SFX = {
   },
   // ჩაშენებული ხმები (ნაგულისხმევი)
   defaults: {
-    right() { [[392, 0, .16], [392, .18, .12], [392, .34, .12], [523, .52, 1.3], [659, .52, 1.3], [784, .52, 1.3], [1047, .52, 1.3]].forEach(([f, s, d]) => { SFX.tone(f, s, d, 'sawtooth', .09); SFX.tone(f, s, d, 'square', .05); }); },
+    // სწორი: რბილი ზარის ორი ტონი (ზემოთ) — ვიდეოთამაშის გარეშე
+    right() { [[880, 0], [1318.5, .14]].forEach(([f, s]) => { SFX.tone(f, s, .9, 'sine', .22); SFX.tone(f * 2, s, .5, 'sine', .05); SFX.tone(f * 3, s, .25, 'triangle', .025); }); },
+    partly() { SFX.tone(660, 0, .5, 'sine', .14); SFX.tone(784, .1, .55, 'sine', .1); },
     wrong() { SFX.bone(233, 0, .45, 222); SFX.bone(220, .55, .45, 208); SFX.bone(208, 1.1, .45, 196); SFX.bone(196, 1.65, 1.5, 150, true); },
     buzz() { SFX.tone(300, 0, .12, 'sine', .35, 720); SFX.tone(720, .12, .18, 'sine', .3, 240); SFX.tone(900, 0, .05, 'square', .06); },
     reveal() { for (let i = 0; i < 12; i++) SFX.tone(160 + i * 6, i * .06, .06, 'triangle', .25); [523, 659, 784].forEach(f => SFX.tone(f, .8, .6, 'square', .07)); },
@@ -32,6 +34,8 @@ const SFX = {
     podium() { SFX.tone(392, 0, .2, 'sawtooth', .1); SFX.tone(523, .22, 1, 'sawtooth', .1); SFX.tone(659, .22, 1, 'sawtooth', .08); SFX.tone(784, .22, 1, 'sawtooth', .08); },
     loser() { SFX.tone(1200, 0, .6, 'sine', .25, 200); SFX.bone(110, .65, .9, 80, true); }
   },
+  libMeta: {},
+  idOf(v) { if (!v || v === 'default' || v === 'none') return v; if (this.libMeta[v]) return v; const e = Object.entries(this.libMeta).find(([, m]) => m && m.name === v); return e ? e[0] : null; },
   async loadLib(id) {
     if (!this.ctx || this.buffers[id] !== undefined) return;
     this.buffers[id] = null;
@@ -60,7 +64,8 @@ const SFX = {
   async preview(choice, event) {
     this.enable();
     if (choice === 'none') return;
-    if (choice === 'default') return this.defaults[event]();
-    await this.loadLib(choice); this.playBuffer(choice);
+    if (choice === 'default' || !choice) return this.defaults[event] && this.defaults[event]();
+    const id = this.idOf(choice) || choice;
+    await this.loadLib(id); if (!this.playBuffer(id) && this.defaults[event]) this.defaults[event]();
   }
 };

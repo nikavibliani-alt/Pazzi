@@ -57,9 +57,21 @@ db.ref('session').on('value', s => { S.session = s.val(); render(); });
 db.ref('players').on('value', s => { S.players = cleanPlayers(s.val()); render(); });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
+db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
+let tvStreakQ = null, shownStreak = {};
+db.ref('results').on('value', s => { S.results = s.val() || {}; tvStreakCheck(); });
+function tvStreakCheck() {
+  const res = S.results || {}, l = S.live || {};
+  if (l.mode !== 'g2' || l.phase !== 'revealed' || !l.qid || !res[l.qid] || shownStreak[l.qid + (res[l.qid]._t || '')]) return;
+  shownStreak[l.qid + (res[l.qid]._t || '')] = true;
+  // „ტელეფონი და ტვ“ — ტვ აჩვენებს ყველაზე დიდ სერიას მოთამაშის სახელით
+  const hits = Object.keys(S.players).map(pid => Object.assign({ pid }, streakHit(res, l.qid, pid) || {})).filter(h => h.step && h.step.where === 'both').sort((x, y) => y.n - x.n);
+  if (hits[0]) setTimeout(() => playStep(hits[0].step, { caption: S.players[hits[0].pid].name + (hits[0].kind === 'correct' ? ` · ${hits[0].n} ზედიზედ სწორი!` : ` · ${hits[0].n} ზედიზედ შეცდომა`) }), 2600);
+}
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {};
   handleSignals(l);
+  setTimeout(tvStreakCheck, 0);
   if (l.qid !== S.curQ) {
     stopClip();
     if (S.curQ) db.ref('answers/' + S.curQ).off();
@@ -174,13 +186,21 @@ function renderBoard() {
   setTimeout(() => {
     cur.forEach((p, i) => {
       const el = app.querySelector(`.sbrow[data-id="${p.id}"]`); if (!el) return;
-      el.style.transform = y(i); $('.pos', el).textContent = i + 1; $('.pt', el).textContent = fmtPts(p.score);
+      const from = prevSc[p.id] || 0, gain = Math.round((p.score - from) * 100) / 100;
+      el.style.transform = y(i); $('.pos', el).textContent = i + 1;
       el.classList.toggle('first', i === 0);
-      if (p.score > (prevSc[p.id] || 0)) el.classList.add('gain');
+      if (gain > 0) { el.classList.add('gain'); $('.nm', el).insertAdjacentHTML('beforeend', `<span class="plus">+${fmtPts(gain)}</span>`); }
+      countUp($('.pt', el), from, p.score, 900);
     });
   }, 900);
 }
 
+// ქულის თვლა ზემოთ (0.67 → 1.67)
+function countUp(el, a, b, ms) {
+  if (!el) return; if (a === b) { el.textContent = fmtPts(b); return; }
+  const t0 = performance.now();
+  (function f(now) { const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3); el.textContent = fmtPts(a + (b - a) * e); if (k < 1) requestAnimationFrame(f); })(t0);
+}
 const LOSER_FALLBACK = 'ბოლო ადგილიც ადგილია!';
 function renderFinal() {
   const l = S.live, step = l.step || 0, steps = finalSteps();
@@ -230,13 +250,7 @@ async function playWrongFx(fx) {
     box.innerHTML = `<video class="fxmedia" src="${d}" autoplay playsinline></video>`;
     const v = box.querySelector('video'); v.muted = !SFX.ctx; v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
     v.onended = () => done(0); done(11000);
-  } else if (fx.name === 'shake') {
-    box.remove(); app.classList.remove('shake'); void app.offsetWidth; app.classList.add('shake'); setTimeout(() => app.classList.remove('shake'), 900);
-  } else if (fx.name === 'tomatoes') {
-    const tomato = '<svg viewBox="0 0 40 40"><circle cx="20" cy="23" r="15" fill="#E5533D" stroke="#3A0F2A" stroke-width="2"/><path d="M20 9l-5-4 4 1 1-4 2 4 4-1-4 4z" fill="#7BBF6A" stroke="#3A0F2A" stroke-width="1.5" stroke-linejoin="round"/><ellipse cx="14" cy="18" rx="3" ry="2" fill="#fff" opacity=".5"/></svg>';
-    box.innerHTML = Array.from({ length: 26 }, () => `<span class="tom" style="left:${Math.random() * 96}vw;animation-duration:${1.6 + Math.random() * 1.4}s;animation-delay:${Math.random() * .9}s;width:${4 + Math.random() * 4}vw">${tomato}</span>`).join('');
-    done(3600);
-  } else if (fx.name === 'stamp') {
-    box.innerHTML = '<div class="stamp">შეცდომა!</div>'; done(2600);
+  } else if (fx.type === 'effect' && fx.name) {
+    box.remove(); runFx(fx.name, { text: fx.name === 'stamp' ? 'შეცდომა!' : '' });
   } else box.remove();
 }

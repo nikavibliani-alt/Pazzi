@@ -33,8 +33,20 @@ function onLiveForSound(l) {
   if (!prev || l.mode !== 'g2' || l.qid !== prev.qid || prev.phase === 'revealed' || l.phase !== 'revealed') return;
   if (!S.pid || !l.q || l.q.type === 'poll') return;
   const right = !!(l.reveal && l.reveal.right && l.reveal.right[S.pid]);
-  SFX.play(right ? 'right' : 'wrong', l.q.sfx || null);
-  if (navigator.vibrate) navigator.vibrate(right ? [90] : [60, 60, 60]);
+  const partly = !!(l.reveal && l.reveal.partial && l.reveal.partial[S.pid]);
+  SFX.play(partly ? 'partly' : right ? 'right' : 'wrong', l.q.sfx || null);
+  if (navigator.vibrate) navigator.vibrate(partly ? [40] : right ? [90] : [60, 60, 60]);
+  // ქულის ამოფრენა (ქულები ცალკე მოდის — ცოტა ვიცდით)
+  setTimeout(() => { const p = Number(S.awarded[l.qid] && S.awarded[l.qid][S.pid]) || 0; if (p > 0) flyPoints(p); }, 450);
+  S.streakFor = l.qid; checkStreak();
+}
+function flyPoints(p) { const d = document.createElement('div'); d.className = 'ptsfly'; d.textContent = '+' + fmtPts(p); document.body.appendChild(d); setTimeout(() => d.remove(), 1600); }
+// სერია: ამ კითხვის შედეგი ჩაიწერა? → ეფექტი ამ მოთამაშის ტელეფონზე, ჩვეულებრივი გამოაშკარავების შემდეგ
+function checkStreak() {
+  const qid = S.streakFor; if (!qid || !S.pid || !S.results || !S.results[qid] || S.results[qid][S.pid] === undefined) return;
+  S.streakFor = null;
+  const hit = streakHit(S.results, qid, S.pid);
+  if (hit) setTimeout(() => playStep(hit.step, { score: '+' + fmtPts(Number(S.awarded[qid] && S.awarded[qid][S.pid]) || 0) }), 1700);
 }
 
 function forget() { store.del('pz_pid'); store.del('pz_code'); S.pid = null; }
@@ -51,6 +63,9 @@ db.ref('players').on('value', s => {
   render();
 });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
+db.ref('avatars').on('value', s => { S.avatars = s.val() || {}; render(); });          // ვის რომელი პერსონაჟი უჭირავს
+db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
+db.ref('results').on('value', s => { S.results = s.val() || {}; checkStreak(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {}; S.ready.live = true;
@@ -69,6 +84,8 @@ function bindAns() {
   S.myAnsRef = db.ref('answers/' + S.curQ + '/' + S.pid);
   S.myAnsRef.on('value', s => { S.myAns = s.val(); render(); });
 }
+// პერსონაჟის საკეტი: { pid, t } (ძველი ფორმატი — უბრალოდ pid)
+const lockOwner = v => (v && typeof v === 'object' ? v.pid : v) || null;
 function me() { return S.pid ? S.players[S.pid] : null; }
 
 // ონლაინ / ოფლაინ: თითო გახსნილ ტელეფონზე ერთი ჩანაწერი, გათიშვისას თავისით იშლება
@@ -94,9 +111,12 @@ async function join() {
   if (!f.avatar) { f.err = 'აირჩიე პერსონაჟი'; return render(); }
   S.busy = true; f.err = '';
   try {
+    const pid = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    // პერსონაჟს ბაზა აძლევს მხოლოდ ერთს — ორი ტელეფონი ერთდროულად ვერ აიღებს
+    const lock = await db.ref('avatars/' + f.avatar).transaction(cur => { const o = lockOwner(cur); return (o && o !== pid && (S.players[o] || Date.now() - ((cur && cur.t) || 0) < 60000)) ? undefined : { pid, t: Date.now() }; });
+    if (!lock.committed) { f.err = 'ეს პერსონაჟი უკვე აიღეს, აირჩიე სხვა'; f.avatar = null; S.busy = false; return render(); }
     const r = await db.ref('session/nextTeam').transaction(n => (n || 0) + 1);
     const team = (r.snapshot.val() - 1) % teamCount();
-    const pid = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     await db.ref('players/' + pid).set({ name, avatar: f.avatar, team, joined: TS });
     store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
     S.pid = pid; if (S.curQ) bindAns();
@@ -204,10 +224,10 @@ function joinHtml() {
   <label class="f">შენი სახელი</label>
   <input id="fname" type="text" maxlength="14" value="${esc(f.name)}" placeholder="მაგ: ნიკა" autocomplete="off">
   <label class="f">აირჩიე პერსონაჟი</label>
-  <div class="avs">${AVATAR_IDS.map(a => `<button data-av="${a}" class="${f.avatar === a ? 'sel' : ''}">${av(a)}</button>`).join('')}</div>
+  <div class="avs" id="avs">${AVATAR_IDS.map(a => { const o = lockOwner((S.avatars || {})[a]), owner = o && S.players[o]; return owner ? `<button class="taken" disabled aria-label="დაკავებულია">${av(a)}<span class="avn">${esc(owner.name)}</span></button>` : `<button data-av="${a}" class="${f.avatar === a ? 'sel' : ''}" aria-label="პერსონაჟი">${av(a)}</button>`; }).join('')}</div>
   <div class="err">${esc(f.err)}</div>
-  <button class="btn primary block lg" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა</button>
-  <button class="btn block quietlink" id="rcodeOpen">უკვე ვთამაშობდი</button></div>`;
+  <div class="joinbar"><button class="btn primary block lg" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა</button>
+  <button class="btn block quietlink" id="rcodeOpen">უკვე ვთამაშობდი</button></div></div>`;
 }
 
 function g1Html(m, l) {
@@ -250,6 +270,12 @@ function g2Html(m, l) {
   if (phase === 'revealed') {
     const pts = Number(S.awarded[l.qid] && S.awarded[l.qid][S.pid]) || 0;
     const right = !!(l.reveal && l.reveal.right && l.reveal.right[S.pid]);
+    const partly = !!(l.reveal && l.reveal.partial && l.reveal.partial[S.pid]);
+    if (partly && a) { // ნაწილობრივ სწორი: არა „არასწორი“ — თითო არჩევანი ✓ / ✗ და გამოტოვებული „სწორი იყო“
+      const c = arr((l.reveal || {}).correct).map(Number), mine = arr(a.a).map(Number);
+      const rows = opts.map((o, i) => { const p = mine.includes(i), ok = c.includes(i); if (!p && !ok) return ''; return `<div class="pick ${p ? (ok ? 'ok' : 'no') : 'miss'}"><span class="mk">${p ? (ok ? '✓' : '✗') : LETTERS[i]}</span><span>${esc(o)}</span>${!p ? '<span class="miss-l">სწორი იყო</span>' : ''}</div>`; }).join('');
+      return qt + msg(m.avatar, 'ნაწილობრივ სწორია!', `+${fmtPts(pts)} ქულა`) + `<div class="picks">${rows}</div>`;
+    }
     let res;
     if (q.type === 'poll') res = msg(m.avatar, 'მადლობა ხმისთვის!');
     else if (right && pts > 0) res = msg(m.avatar, pickText('correct', seed), `+${fmtPts(pts)} ქულა`);
@@ -291,7 +317,7 @@ document.addEventListener('click', e => {
   if (t.id === 'rcodeOpen') { S.form.byCode = true; S.form.err = ''; return render(); }
   if (t.id === 'rcodeBack') { S.form.byCode = false; S.form.err = ''; return render(); }
   if (t.id === 'rcodeBtn') return rejoinByCode();
-  if (t.dataset.av) { S.form.avatar = t.dataset.av; S.form.err = ''; render(); }
+  if (t.dataset.av) { const o = lockOwner((S.avatars || {})[t.dataset.av]); if (o && S.players[o] && o !== S.pid) return; S.form.avatar = t.dataset.av; S.form.err = ''; render(); }
   else if (t.id === 'joinBtn') join();
   else if (t.id === 'rejoinYes') rejoin(true);
   else if (t.id === 'rejoinNo') rejoin(false);

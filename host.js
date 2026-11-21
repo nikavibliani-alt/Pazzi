@@ -201,7 +201,7 @@ const A = {
   sfx(kind) { db.ref('live/sfx').set({ kind, n: Date.now() }); },
   async reset() {
     if (!(await ask('წაიშლება ყველა მოთამაშე, ქულა და პასუხი. კითხვები და პარამეტრები დარჩება.', 'დიახ, განულება'))) return;
-    const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, live: { mode: 'lobby' }, 'session/code': String(Math.floor(1000 + Math.random() * 9000)), 'session/nextTeam': 0 };
+    const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, live: { mode: 'lobby' }, 'session/code': String(Math.floor(1000 + Math.random() * 9000)), 'session/nextTeam': 0 };
     for (let i = 0; i < 4; i++) u['teams/' + i + '/score'] = 0;
     db.ref().update(u); toast('თამაში განულდა');
   },
@@ -243,12 +243,12 @@ const A = {
     if (S.awarded[id] && !(await popup({ title: 'თავიდან ჩვენება?', text: 'ამ კითხვას უკვე აქვს ქულები. თუ თავიდან აჩვენებ, ამ კითხვის ქულები და პასუხები წაიშლება.', ok: 'თავიდან ჩვენება', danger: true }))) return;
     const pub = { type: q.type, text: q.text || '', img: q.img || null, snd: q.snd || null, sfx: q.sfx || null, rules: rulesFor(q), wrongFx: q.wrongFx || null };
     if (q.type !== 'text') pub.options = arr(q.options);
-    db.ref().update({ ['answers/' + id]: null, ['awarded/' + id]: null, ['seq/' + id]: null, live: { mode: 'g2', qid: id, q: pub, phase: 'answering', view: 'question' } });
+    db.ref().update({ ['answers/' + id]: null, ['awarded/' + id]: null, ['seq/' + id]: null, ['results/' + id]: null, live: { mode: 'g2', qid: id, q: pub, phase: 'answering', view: 'question' } });
   },
   g2next() { const qs = listQ(2), i = qs.findIndex(x => x.id === S.live.qid), nx = qs[i + 1]; if (nx) A.g2show(nx.id); else toast('კითხვები დასრულდა'); },
   async resetscores() {
     if (!(await ask('ყველა ქულა გახდება 0. მოთამაშეები და კითხვები დარჩება.', 'დიახ, განულება'))) return;
-    const u = { awarded: null }; for (let i = 0; i < 6; i++) u['teams/' + i + '/score'] = 0;
+    const u = { awarded: null, results: null }; for (let i = 0; i < 6; i++) u['teams/' + i + '/score'] = 0;
     db.ref().update(u); toast('ქულები განულდა');
   },
   rcode(id) { rejoinCode(id); },
@@ -264,14 +264,17 @@ const A = {
   async g2reveal() {
     const qid = S.live.qid, q = S.questions[qid]; if (!q) return;
     S.answers = (await db.ref('answers/' + qid).once('value')).val() || {};
-    const { aw, right, first } = computeAwards();
-    db.ref().update({ ['awarded/' + qid]: Object.keys(aw).length ? aw : null, 'live/phase': 'revealed', 'live/reveal': { correct: arr(q.correct), answer: q.answer || '', right: Object.keys(right).length ? right : null, first: first || null } });
+    const res = computeAwards();
+    const u = revealUpdate(qid, q, res);
+    u['live/phase'] = 'revealed';
+    u['live/reveal'] = { correct: arr(q.correct), answer: q.answer || '', right: nz(res.right), first: res.first || null, partial: nz(partialOf(res)) };
+    db.ref().update(u);
   },
   g2board() { db.ref('live/view').set('scoreboard'); },
   mark(pid) {
     const a = S.answers[pid], q = S.questions[S.live.qid]; if (!a || !q) return;
     db.ref('answers/' + S.live.qid + '/' + pid + '/ok').set(!typedOk(q, a)).then(() => {
-      if (S.live.phase === 'revealed') setTimeout(() => { const { aw, right } = computeAwards(); db.ref().update({ ['awarded/' + S.live.qid]: Object.keys(aw).length ? aw : null, 'live/reveal/right': Object.keys(right).length ? right : null }); }, 150);
+      if (S.live.phase === 'revealed') setTimeout(() => { const qid = S.live.qid, res = computeAwards(), u = revealUpdate(qid, S.questions[qid], res); u['live/reveal/right'] = nz(res.right); u['live/reveal/partial'] = nz(partialOf(res)); u['live/reveal/first'] = res.first || null; db.ref().update(u); }, 150);
     });
   },
   async finale() {
@@ -281,7 +284,7 @@ const A = {
     db.ref('live').set({ mode: 'final', step: 0 });
   },
   fstep(d) { db.ref('live/step').set(Math.max(0, Math.min(finalSteps().length, (S.live.step || 0) + Number(d)))); },
-  async kick(id) { const p = S.players[id]; if (p && await ask(`${p.name} წაიშლება თამაშიდან.`)) db.ref('players/' + id).remove(); },
+  async kick(id) { const p = S.players[id]; if (p && await ask(`${p.name} წაიშლება თამაშიდან.`)) { const u = { ['players/' + id]: null }; if (p.avatar) u['avatars/' + p.avatar] = null; if (p.rcode) u['rejoin/' + p.rcode] = null; db.ref().update(u); } },
   jump(d) {
     const g = S.sec === 'g1' ? 1 : S.sec === 'g2' ? 2 : 0; if (!g) return;
     const qs = listQ(g), cur = S.live.mode === (g === 1 ? 'g1' : 'g2') ? S.live.qid : null, i = qs.findIndex(x => x.id === cur);
@@ -290,6 +293,18 @@ const A = {
   }
 };
 // ქულები კითხვის წესების მიხედვით
+const nz = o => (o && Object.keys(o).length ? o : null);
+const partialOf = res => { const p = {}; Object.entries(res.frac || {}).forEach(([pid, f]) => { if (f > 0 && f < 1) p[pid] = true; }); return p; };
+// ქულები + სერიისთვის შედეგი: c = სწორი, w = არასწორი (ან არ უპასუხა), p = ნაწილობრივ
+function revealUpdate(qid, q, res) {
+  const u = { ['awarded/' + qid]: nz(res.aw) };
+  if (q && q.type !== 'poll') {
+    const r = { _t: S.live.revealedAt || Date.now() };
+    Object.keys(S.players).forEach(pid => { const f = (res.frac || {})[pid]; r[pid] = f === undefined ? 'w' : f >= 1 ? 'c' : f > 0 ? 'p' : 'w'; });
+    u['results/' + qid] = r;
+  }
+  return u;
+}
 function computeAwards() { const q = S.questions[S.live.qid]; return scoreQuestion(q, validAnswers(), rulesFor(q)); }
 const typedOk = (q, a) => a.ok === true || (a.ok === undefined && rulesFor(q).typed === 'auto' && autoMatch(a.a, q.answer));
 // ბლიცში ქულა გუნდს ან (გუნდების გარეშე) მოთამაშეს
@@ -337,6 +352,7 @@ async function mergePlayer(id) {
     u['awarded/' + qid + '/' + v.to] = sum || null; u['awarded/' + qid + '/' + id] = null;
   });
   u['players/' + id] = null;
+  if (p.avatar) u['avatars/' + p.avatar] = null;
   await db.ref().update(u); toast('მოთამაშეები გაერთიანდა');
 }
 document.addEventListener('click', e => {
