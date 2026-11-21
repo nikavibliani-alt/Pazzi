@@ -5,7 +5,7 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
 const S = {
-  ready: { session: false, players: false, live: false },
+  ready: { session: false, players: false, live: false, config: false },
   session: null, live: null, players: {}, teams: {}, awarded: {},
   myAns: undefined, myAnsRef: null, curQ: null,
   pid: store.get('pz_pid'),
@@ -14,6 +14,7 @@ const S = {
 };
 const app = $('#app');
 watchConnection(ok => $('#conn').classList.toggle('hidden', ok));
+watchConfig(() => { S.ready.config = true; document.title = gameName(); render(); });
 
 function forget() { store.del('pz_pid'); store.del('pz_code'); S.pid = null; }
 
@@ -45,16 +46,15 @@ function bindAns() {
   S.myAnsRef = db.ref('answers/' + S.curQ + '/' + S.pid);
   S.myAnsRef.on('value', s => { S.myAns = s.val(); render(); });
 }
-
 function me() { return S.pid ? S.players[S.pid] : null; }
 
 // ───────── შესვლა ─────────
 async function join() {
   const f = S.form;
   const code = f.code.trim(), name = f.name.trim();
-  if (!S.session || code !== String(S.session.code)) { f.err = 'კოდი არასწორია 🙈'; return render(); }
-  if (!name) { f.err = 'ჩაწერე სახელი ✏️'; return render(); }
-  if (!f.avatar) { f.err = 'აირჩიე სურათი 🙂'; return render(); }
+  if (!S.session || code !== String(S.session.code)) { f.err = 'კოდი არასწორია'; return render(); }
+  if (!name) { f.err = 'ჩაწერე სახელი'; return render(); }
+  if (!f.avatar) { f.err = 'აირჩიე პერსონაჟი'; return render(); }
   if (Object.values(S.players).some(p => (p.name || '').toLowerCase() === name.toLowerCase())) {
     f.err = 'ეს სახელი უკვე დაკავებულია, სხვა აირჩიე'; return render();
   }
@@ -70,7 +70,7 @@ async function join() {
   S.busy = false; render();
 }
 
-// ───────── Game 1: ზარი ─────────
+// ───────── თამაში 1: ზარი ─────────
 function buzz() {
   const m = me(); if (!m) return;
   if (navigator.vibrate) navigator.vibrate(60);
@@ -83,7 +83,7 @@ function buzz() {
   }, null, false);
 }
 
-// ───────── Game 2: პასუხი ─────────
+// ───────── თამაში 2: პასუხი ─────────
 function sendAns(a) {
   if (!S.curQ || S.myAns || !S.live || S.live.phase !== 'answering') return;
   S.myAns = { a, t: 0 }; render();
@@ -95,97 +95,99 @@ let lastHtml = '';
 function view(html) {
   if (html === lastHtml) return;
   const ae = document.activeElement;
-  const id = ae && ae.id, val = ae && ae.value, ss = ae && ae.selectionStart;
+  const id = ae && ae.id, ss = ae && ae.selectionStart;
   app.innerHTML = html; lastHtml = html;
   if (id) { const n = document.getElementById(id); if (n) { n.focus(); try { n.setSelectionRange(ss, ss); } catch (e) {} } }
 }
-function msg(emo, text) { return `<div class="msg"><span class="emo">${emo}</span>${text}</div>`; }
+function msg(avatar, text, small) { return `<div class="msg pop"><div class="pic">${av(avatar)}</div>${esc(text)}${small ? `<small>${esc(small)}</small>` : ''}</div>`; }
 
 function render() {
-  if (!S.ready.session || !S.ready.players || !S.ready.live) return view(msg('⏳', 'იტვირთება…'));
+  const R = S.ready;
+  if (!R.session || !R.players || !R.live || !R.config) return view(`${logoHtml()}<div class="msg">…</div>`);
   const m = me();
   if (!m) return view(joinHtml());
   const l = S.live || {}, mode = l.mode || 'lobby';
   const myScore = scoreMap(S.awarded)[S.pid] || 0;
-  const tc = TEAM_COLORS[m.team];
-  let right = myScore, sub = '';
-  if (mode === 'g1') { right = teamScore(S.teams, m.team); sub = `<small style="color:${tc}">${TEAM_EMOJI[m.team]} ${esc(teamName(S.teams, m.team))}</small>`; }
-  const top = `<div class="top"><div class="av">${esc(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${(mode === 'g1' || mode === 'g2') ? `<div class="sc" style="background:${mode === 'g1' ? tc : ''}">${right}</div>` : ''}</div>`;
+  const t = m.team;
+  let score = myScore, sub = '';
+  if (mode === 'g1') { score = teamScore(S.teams, t); sub = `<small>${esc(teamName(S.teams, t))}</small>`; }
+  const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${mode === 'g1' ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${score}</div>` : '';
+  const top = `<div class="top"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
   let body = '';
-  if (mode === 'lobby') body = msg('🎈', 'მალე დავიწყებთ!<br>ეკრანს უყურე 📺');
-  else if (mode === 'break') body = msg('☕🍰', 'შესვენებაა!<br>დაისვენე და ჭამე 😋');
+  if (mode === 'lobby') body = msg(m.avatar, pickText('wait_start', S.pid + 'lobby'));
+  else if (mode === 'break') body = msg(m.avatar, 'შესვენებაა!', 'დაისვენე და მიირთვი რამე.');
   else if (mode === 'g1') body = g1Html(m, l);
   else if (mode === 'g2') body = g2Html(m, l);
-  else if (mode === 'final') body = finalHtml();
+  else if (mode === 'final') body = msg(m.avatar, 'ფინალი! შეხედე ეკრანს.');
   view(top + body);
 }
 
 function joinHtml() {
   const f = S.form;
-  return `<h1>🎉 ფაციფუცობანა</h1>
-  <label>თამაშის კოდი</label>
+  return `${logoHtml()}<div class="card join-card pop">
+  <label class="f">თამაშის კოდი</label>
   <input id="fcode" type="tel" inputmode="numeric" maxlength="6" value="${esc(f.code)}" placeholder="0000" autocomplete="off">
-  <label>შენი სახელი</label>
+  <label class="f">შენი სახელი</label>
   <input id="fname" type="text" maxlength="14" value="${esc(f.name)}" placeholder="მაგ: ნიკა" autocomplete="off">
-  <label>აირჩიე სურათი</label>
-  <div class="avs">${AVATARS.map(a => `<button data-av="${a}" class="${f.avatar === a ? 'sel' : ''}">${a}</button>`).join('')}</div>
+  <label class="f">აირჩიე პერსონაჟი</label>
+  <div class="avs">${AVATAR_IDS.map(a => `<button data-av="${a}" class="${f.avatar === a ? 'sel' : ''}">${av(a)}</button>`).join('')}</div>
   <div class="err">${esc(f.err)}</div>
-  <button class="btn pink" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა 🎉</button>`;
+  <button class="btn primary block lg" id="joinBtn" ${S.busy ? 'disabled' : ''}>შესვლა</button></div>`;
 }
 
 function g1Html(m, l) {
-  if (!l.qid) return msg('👀', 'მოემზადე!<br>შემდეგ კითხვას ველოდებით');
-  const t = m.team, b = l.buzz;
+  if (!l.qid) return msg(m.avatar, pickText('wait_start', S.pid + 'g1'));
+  const t = m.team, b = l.buzz, seed = l.qid + S.pid;
   if (l.phase === 'open') {
-    if (l.wrongTeams && l.wrongTeams[t]) return `<button class="buzz" disabled style="font-size:30px">🙈<br>თქვენმა გუნდმა<br>უკვე სცადა</button>`;
-    return `<button class="buzz" id="buzz">🔔<br>დააჭირე!</button>`;
+    if (l.wrongTeams && l.wrongTeams[t]) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>თქვენმა გუნდმა უკვე სცადა. ახლა სხვებს აძლევენ შანსს.</small></div>`;
+    return `<button class="buzz" id="buzz">დააჭირე!</button>`;
   }
   if (b && b.pid === S.pid) {
-    return `<button class="buzz won" disabled style="font-size:36px">🎉<br>შენ დააჭირე<br>პირველმა!</button>` + (l.phase === 'right' ? msg('✅', 'სწორია!') : `<div class="msg">თქვით პასუხი ხმამაღლა 🗣️</div>`);
+    return `<button class="buzz won" disabled>${esc(pickText('buzz_first', seed))}</button>` + (l.phase === 'right' ? msg(m.avatar, pickText('correct', seed)) : `<div class="msg"><small>თქვით პასუხი ხმამაღლა!</small></div>`);
   }
-  if (b) return msg(b.avatar || '🔔', `${esc(b.name)} დააჭირა პირველმა` + (l.phase === 'right' ? '<br>✅ სწორია!' : ''));
-  return msg('⏳', '…');
+  if (b) return msg(b.avatar, `${b.name} დააჭირა პირველმა`, l.phase === 'right' ? pickText('correct', seed) : pickText('too_slow', seed));
+  return msg(m.avatar, '…');
 }
 
 function g2Html(m, l) {
   const q = l.q;
-  if (!q || !l.qid) return msg('👀', 'მოემზადე!<br>კითხვას ველოდებით');
-  if (l.view === 'scoreboard') return scoreHtml();
-  const opts = arr(q.options), a = S.myAns;
+  if (!q || !l.qid) return msg(m.avatar, pickText('wait_start', S.pid + 'g2'));
+  if (l.view === 'scoreboard') return scoreHtml(l);
+  const opts = arr(q.options), a = S.myAns, seed = l.qid + S.pid;
   const qt = `<div class="qtext">${esc(q.text)}</div>`;
   const phase = l.phase;
   if (phase === 'answering') {
-    if (a) return qt + sentHtml(q, a) + `<div class="msg" style="padding:10px">✅ პასუხი გაგზავნილია<br><small>ველოდებით სხვებს…</small></div>`;
+    if (a) return qt + sentHtml(q, a) + msg(m.avatar, pickText('wait_others', seed));
     if (q.type === 'single' || q.type === 'poll') {
-      return qt + opts.map((o, i) => `<button class="opt" data-pick="${i}" style="background:${OPT_COLORS[i]}"><span class="lt">${LETTERS[i]}</span>${esc(o)}</button>`).join('');
+      return qt + opts.map((o, i) => `<button class="opt" data-pick="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${LETTERS[i]}</span>${esc(o)}</button>`).join('');
     }
     if (q.type === 'multi') {
-      return qt + `<div style="text-align:center;font-size:17px;opacity:.8">შეიძლება რამდენიმე სწორი იყოს</div>` +
-        opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" style="background:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? '✓' : LETTERS[i]}</span>${esc(o)}</button>`).join('') +
-        `<button class="btn pink" id="sendMulti" ${S.sel.length ? '' : 'disabled'} style="margin-top:16px">გაგზავნა ✅</button>`;
+      return qt + `<div class="msg" style="padding:0 0 4px"><small>შეიძლება რამდენიმე სწორი იყოს</small></div>` +
+        opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? '✓' : LETTERS[i]}</span>${esc(o)}</button>`).join('') +
+        `<button class="btn primary block lg" id="sendMulti" ${S.sel.length ? '' : 'disabled'} style="margin-top:18px">გაგზავნა</button>`;
     }
     if (q.type === 'text') {
-      return qt + `<textarea id="typed" maxlength="80" placeholder="ჩაწერე პასუხი…">${esc(S.typed)}</textarea><button class="btn pink" id="sendText">გაგზავნა ✅</button>`;
+      return qt + `<textarea id="typed" maxlength="80" placeholder="ჩაწერე პასუხი…">${esc(S.typed)}</textarea><button class="btn primary block lg" id="sendText">გაგზავნა</button>`;
     }
   }
-  if (phase === 'locked') return qt + (a ? sentHtml(q, a) : '') + msg('🔒', 'პასუხები დაიკეტა<br><small>ველოდებით გამოაშკარავებას…</small>');
+  if (phase === 'locked') return qt + (a ? sentHtml(q, a) + msg(m.avatar, 'პასუხები დაიკეტა', 'ველოდებით გამოაშკარავებას…') : msg(m.avatar, pickText('too_slow', seed), 'პასუხები დაიკეტა'));
   if (phase === 'revealed') {
     const aw = S.awarded[l.qid] && S.awarded[l.qid][S.pid];
     let res;
-    if (q.type === 'poll') res = msg('🗳️', 'მადლობა ხმისთვის!');
-    else if (aw) res = msg('🎉', 'სწორია! +1');
-    else if (!a) res = msg('😴', 'ამ კითხვაზე არ გიპასუხია');
-    else res = msg('😅', 'ამჯერად არა');
+    if (q.type === 'poll') res = msg(m.avatar, 'მადლობა ხმისთვის!');
+    else if (aw) res = msg(m.avatar, pickText('correct', seed), '+1 ქულა');
+    else if (!a) res = msg(m.avatar, pickText('too_slow', seed));
+    else res = msg(m.avatar, pickText('wrong', seed));
     let corr = '';
     if (q.type === 'single' || q.type === 'multi') {
       const c = arr((l.reveal || {}).correct).map(Number);
-      corr = `<div class="card" style="text-align:center;font-size:20px">სწორი პასუხი:<br>${c.map(i => esc(opts[i])).join(' • ')}</div>`;
+      corr = `<div class="card" style="text-align:center;font-weight:800">სწორი პასუხი:<br>${c.map(i => esc(opts[i])).join(' • ')}</div>`;
     } else if (q.type === 'text' && l.reveal && l.reveal.answer) {
-      corr = `<div class="card" style="text-align:center;font-size:20px">სწორი პასუხი:<br>${esc(l.reveal.answer)}</div>`;
+      corr = `<div class="card" style="text-align:center;font-weight:800">სწორი პასუხი:<br>${esc(l.reveal.answer)}</div>`;
     }
     return qt + res + corr;
   }
-  return msg('⏳', '…');
+  return msg(m.avatar, '…');
 }
 function sentHtml(q, a) {
   const opts = arr(q.options);
@@ -193,16 +195,15 @@ function sentHtml(q, a) {
   if (q.type === 'text') t = esc(a.a);
   else if (q.type === 'multi') t = arr(a.a).map(i => esc(opts[i])).join(' • ');
   else t = esc(opts[a.a]);
-  return `<div class="card" style="text-align:center;font-size:22px;margin:8px 0">შენი პასუხი:<br>${t}</div>`;
+  return `<div class="card" style="text-align:center;font-weight:800;margin:8px 0">შენი პასუხი:<br>${t}</div>`;
 }
-function scoreHtml() {
+function scoreHtml(l) {
   const r = ranking(S.players, S.awarded);
   const idx = r.findIndex(x => x.id === S.pid);
-  const list = r.slice(0, 5).map((p, i) => `<div class="row ${p.id === S.pid ? 'me' : ''}"><b>${i + 1}.</b> <span>${esc(p.avatar)}</span> <span style="flex:1">${esc(p.name)}</span> <b>${p.score}</b></div>`).join('');
-  const mine = idx >= 5 ? `<div class="row me"><b>${idx + 1}.</b> <span>${esc(r[idx].avatar)}</span> <span style="flex:1">${esc(r[idx].name)}</span> <b>${r[idx].score}</b></div>` : '';
-  return `<h1>🏆 ქულები</h1>${list}${mine}<div class="msg" style="font-size:20px;padding:12px">ეკრანზე ნახე სრული ცხრილი 📺</div>`;
+  const row = (p, i) => `<div class="row ${p.id === S.pid ? 'me' : ''}"><span>${i + 1}.</span><span class="pic">${av(p.avatar)}</span><span style="flex:1">${esc(p.name)}</span><b>${p.score}</b></div>`;
+  const mine = idx >= 5 ? row(r[idx], idx) : '';
+  return `<div class="title head">${esc(pickText('board_title', l.qid))}</div>${r.slice(0, 5).map(row).join('')}${mine}<div class="msg"><small>სრული ცხრილი ეკრანზეა</small></div>`;
 }
-function finalHtml() { return msg('🏁', 'ფინალი!<br>შეხედე ეკრანს 📺'); }
 
 // ───────── დაჭერები ─────────
 document.addEventListener('click', e => {
@@ -224,7 +225,6 @@ document.addEventListener('input', e => {
   else if (e.target.id === 'fname') S.form.name = e.target.value;
   else if (e.target.id === 'typed') S.typed = e.target.value;
 });
-// buzz-ზე სწრაფი რეაქცია (touchstart), ორმაგი გაშვების გარეშე
 document.addEventListener('touchstart', e => {
   const t = e.target.closest('#buzz'); if (t) { e.preventDefault(); buzz(); }
 }, { passive: false });

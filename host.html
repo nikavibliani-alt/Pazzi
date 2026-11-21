@@ -5,31 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ფაციფუცობანა — წამყვანი</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@600;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@500;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="host">
 <div id="gate">
-  <h1 style="color:#d6246e">🔒 წამყვანის გვერდი</h1>
-  <input id="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
-  <button class="btn pink" id="pinBtn">შესვლა</button>
-  <div class="err" id="pinErr" style="color:#d11a4f;margin-top:10px"></div>
+  <div id="gateLogo"></div>
+  <p class="muted" style="font-weight:800">PIN-კოდი</p>
+  <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
+  <button class="btn primary block lg" id="pinBtn">შესვლა</button>
+  <div class="err" id="pinErr"></div>
 </div>
 <div id="app" hidden>
-  <header>
-    <h2>🎤 ფაციფუცობანა</h2>
-    <span class="badge" id="codeBadge"></span>
-    <span class="badge" id="plBadge"></span>
-    <div class="tabs">
-      <button data-tab="control">🎮 მართვა</button>
-      <button data-tab="questions">✏️ კითხვები</button>
-      <button data-tab="players">👥 მოთამაშეები</button>
-    </div>
-  </header>
-  <main id="view"></main>
+  <div class="topbar">
+    <div id="topLogo"></div>
+    <span class="badge" id="codeBadge"></span><span class="badge" id="plBadge"></span>
+    <div class="tabs"><button data-tab="control">მართვა</button><button data-tab="players">მოთამაშეები</button></div>
+  </div>
+  <main class="page" id="view"></main>
 </div>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="avatars.js"></script>
 <script src="common.js"></script>
 <script src="host.js"></script>
 </body>

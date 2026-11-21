@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ფაციფუცობანა — ადმინი</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@500;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="admin">
+<div id="gate">
+  <div id="gateLogo"></div>
+  <p class="muted" style="font-weight:800">PIN-კოდი</p>
+  <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
+  <button class="btn primary block lg" id="pinBtn">შესვლა</button>
+  <div class="err" id="pinErr"></div>
+</div>
+<div id="app" hidden>
+  <div class="topbar">
+    <div id="topLogo"></div>
+    <span class="badge">ადმინი</span>
+    <div class="tabs"><button data-tab="quiz">ქვიზები და კითხვები</button><button data-tab="images">სურათები</button><button data-tab="sounds">ხმები</button><button data-tab="settings">პარამეტრები</button></div>
+  </div>
+  <main class="page" id="view"></main>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="avatars.js"></script>
+<script src="common.js"></script>
+<script src="sfx.js"></script>
+<script src="tvview.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
