@@ -656,3 +656,36 @@ body.phone { min-height: 100vh; min-height: 100dvh; padding: max(14px, env(safe-
 .app .bacts { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .app .bacts .btn { width: 100%; white-space: normal; }
 .tv .fx-media .fxmediabox img { min-height: 52vh; min-width: 30vw; object-fit: contain; }
+
+/* მოთამაშეების ხმის მიცემა */
+.phone .pvgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.phone .pvbtn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; min-height: 120px; background: #fff; border: 3px solid var(--pink-l); border-radius: 18px; font: inherit; font-weight: 800; font-size: 18px; color: var(--ink); cursor: pointer; }
+.phone .pvbtn .pic { width: 72px; height: 72px; }
+.phone .pvbtn .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone .pvbtn.sel { border-color: var(--pink); background: #fff6f9; box-shadow: 0 0 0 3px var(--pink) inset; }
+.tv .pvote .pvcount { flex: 1; display: flex; align-items: center; justify-content: center; font-family: var(--head); font-weight: 800; color: var(--pink); }
+.tv .pvote .pvcount b { font-size: 22vw; line-height: 1; }
+.tv .pvote .pvcount span { font-size: 9vw; color: var(--ink); opacity: .5; }
+.tv .pvrow .place { font-family: var(--head); font-weight: 800; font-size: 3vw; width: 4vw; text-align: center; color: var(--pink); flex: none; }
+.tv .pvrow.pvin { animation: slam .35s ease-out both; }
+.tv .pvrow:not(.pvin) .fill { animation: none; width: 0; }
+.tv .bbars.hidden { display: none; }
+.tv .crowned { position: relative; overflow: visible !important; }
+.tv .crowned .crown { position: absolute; left: 50%; top: -38%; width: 70%; transform: translateX(-50%) rotate(-8deg); animation: crownDrop .9s cubic-bezier(.3, 1.5, .5, 1) .3s both; filter: drop-shadow(0 .4vw .6vw rgba(58, 15, 42, .25)); z-index: 2; }
+@keyframes crownDrop { from { transform: translate(-50%, -160%) rotate(-30deg); opacity: 0; } to { transform: translateX(-50%) rotate(-8deg); opacity: 1; } }
+.app .vrow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--pink-l); font-weight: 700; }
+.app .vrow .pic { width: 26px; height: 26px; }
+.app .vrow .arr { color: var(--muted); }
+.app .presetrow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1.5px solid var(--pink-l); border-radius: 12px; margin: 6px 0; font-weight: 700; background: #fff; }
+.app .endrow { display: flex; justify-content: flex-end; margin: -6px 0 12px; }
+.app .endopts { display: grid; gap: 10px; margin: 6px 0 14px; }
+.app .endopts .muted { margin-top: 6px; font-weight: 700; }
+.app .eve { display: grid; gap: 6px; font-size: 13px; }
+.app .eve .g { display: flex; justify-content: space-between; gap: 8px; }
+.app .eve .st { font-weight: 700; white-space: nowrap; }
+.app .eve .st.run { color: var(--pink); }
+.app .eve .st.done { color: #2E7D57; }
+.app .eve .top3 { margin-top: 6px; border-top: 1px dashed var(--pink-l); padding-top: 6px; }
+.app .eve .top3 div { display: flex; justify-content: space-between; }
+.tv .pvote .bwin { margin-top: 6vh; }
+.tv .pvote .bwpics .pic { width: 14vw; height: 14vw; }

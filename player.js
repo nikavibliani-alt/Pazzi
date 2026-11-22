@@ -69,6 +69,10 @@ db.ref('results').on('value', s => { S.results = s.val() || {}; checkStreak(); }
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {}; S.ready.live = true;
+  if (l.mode === 'pvote' && l.round !== S.pround) { // მოთამაშეების ხმის მიცემა — მიმდინარე რაუნდი
+    if (S.pref) S.pref.off(); S.pround = l.round; S.pvotes = {};
+    S.pref = db.ref('pvotes/' + l.round); S.pref.on('value', v => { S.pvotes = v.val() || {}; render(); });
+  }
   if (l.mode === 'battle' && l.round !== S.bround) { // ბრძოლის ხმები — მიმდინარე რაუნდი
     if (S.bref) S.bref.off(); S.bround = l.round; S.bvotes = {};
     S.bref = db.ref('bvotes/' + l.round); S.bref.on('value', v => { S.bvotes = v.val() || {}; render(); });
@@ -207,6 +211,7 @@ function render() {
   else if (mode === 'g2') body = g2Html(m, l);
   else if (mode === 'final') body = msg(m.avatar, 'ფინალი! შეხედე ეკრანს.');
   else if (mode === 'battle') body = battleHtml(m, l);
+  else if (mode === 'pvote') body = pvoteHtml(m, l);
   view(top + body, [mode, l.qid || '', l.phase || '', l.view || ''].join('|'));
   updateSndBtn();
 }
@@ -255,6 +260,19 @@ function battleHtml(m, l) {
   const my = (S.bvotes || {})[S.pid];
   if (l.phase !== 'voting') return msg(m.avatar, 'ხმის მიცემა დასრულდა', my && S.players[my] ? 'შენ ხმა მიეცი: ' + S.players[my].name : '');
   return `<div class="qtext">ვის აძლევ ხმას?</div>` + ids.map(id => `<button class="opt votebtn ${my === id ? 'sel' : ''}" data-vote="${id}"><span class="pic">${av(S.players[id].avatar)}</span><span>${esc(S.players[id].name)}</span></button>`).join('') + `<div class="msg" style="padding:8px 0"><small>${my ? 'ხმა მიცემულია. შეგიძლია შეცვალო, სანამ დაიხურება.' : 'ერთი ხმა გაქვს.'}</small></div>`;
+}
+// მოთამაშეების ხმის მიცემა: ყველა სხვა მოთამაშე დიდ ღილაკებად; საკუთარ თავს ვერ აძლევ (თუ არ არის ნებადართული)
+function pvoteHtml(m, l) {
+  if (l.phase === 'result') { const w = pollCount(S.players, S.pvotes).winners.filter(id => S.players[id]); return w.length ? msg(S.players[w[0]].avatar, (w.length > 1 ? 'გამარჯვებულები: ' : 'გამარჯვებული: ') + w.map(id => S.players[id].name).join(' და '), 'შეხედე ეკრანს!') : msg(m.avatar, 'ხმები არ არის'); }
+  const my = (S.pvotes || {})[S.pid];
+  if (l.phase !== 'voting') return msg(m.avatar, 'ხმის მიცემა დასრულდა', my && S.players[my] ? 'შენ ხმა მიეცი: ' + S.players[my].name : '');
+  const ids = Object.entries(S.players).filter(([id]) => l.self || id !== S.pid).sort((a, b) => (a[1].joined || 0) - (b[1].joined || 0)).map(([id]) => id);
+  return `<div class="qtext">${esc(l.title || 'ხმის მიცემა')}</div><div class="pvgrid">` + ids.map(id => `<button class="pvbtn ${my === id ? 'sel' : ''}" data-pvote="${id}"><span class="pic">${av(S.players[id].avatar)}</span><span class="nm">${esc(S.players[id].name)}</span></button>`).join('') + `</div><div class="msg" style="padding:8px 0"><small>${my ? 'ხმა მიცემულია. შეგიძლია შეცვალო, სანამ დაიხურება.' : 'ერთი ხმა გაქვს.'}</small></div>`;
+}
+function pvote(pid) {
+  const l = S.live || {}; if (l.mode !== 'pvote' || l.phase !== 'voting' || (!l.self && pid === S.pid) || !S.players[pid]) return;
+  S.pvotes = Object.assign({}, S.pvotes, { [S.pid]: pid }); render();
+  db.ref('pvotes/' + l.round + '/' + S.pid).set(pid).then(() => pollAutoLock(S.players, S.pvotes));
 }
 function vote(pid) {
   const l = S.live || {}; if (l.mode !== 'battle' || l.phase !== 'voting' || (l.perf || {})[S.pid] || !(l.perf || {})[pid]) return;
@@ -355,6 +373,7 @@ document.addEventListener('click', e => {
   else if (t.id === 'rejoinNo') rejoin(false);
   else if (t.id === 'buzz') buzz();
   else if (t.dataset.vote) vote(t.dataset.vote);
+  else if (t.dataset.pvote) pvote(t.dataset.pvote);
   else if (t.dataset.pick !== undefined) sendAns(Number(t.dataset.pick));
   else if (t.dataset.tog !== undefined) {
     const i = Number(t.dataset.tog);

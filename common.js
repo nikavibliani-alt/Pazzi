@@ -95,6 +95,20 @@ const DEFAULT_BATTLES = {
   twerk: { name: 'Twerk Battle', created: 1, pts: 0, win: { media: { type: 'url', url: 'https://media.tenor.com/XgGffqpGefwAAAAj/twerk.gif' }, dur: 4 } },
   sing: { name: 'Singing Battle', created: 2, pts: 0, win: { videoDelay: 2 } }
 };
+// მოთამაშეების ხმის მიცემა (MVP და მსგავსი): წინასწარ შენახული სათაურები
+const DEFAULT_POLLS = { mvp: { title: 'ვინ არის საღამოს MVP?', created: 1, pts: 0, self: false, win: { dur: 4 } } };
+function pollCount(players, votes) {
+  const c = {};
+  Object.entries(votes || {}).forEach(([v, t]) => { if (players && players[v] && players[t]) c[t] = (c[t] || 0) + 1; });
+  const list = Object.entries(c).map(([pid, n]) => ({ pid, n })).sort((a, b) => b.n - a.n);
+  const top = list.length ? list[0].n : 0;
+  return { list, winners: list.filter(x => x.n === top && top > 0).map(x => x.pid) };
+}
+function pollAutoLock(players, votes) {
+  const voters = Object.entries(players || {}).filter(([, p]) => isOnline(p));
+  if (!voters.length || !voters.every(([id]) => votes && votes[id])) return;
+  db.ref('live').transaction(l => { if (!l || l.mode !== 'pvote' || l.phase !== 'voting') return; l.phase = 'closed'; l.autoLocked = true; return l; }, null, false);
+}
 // ხმის მიცემა იკეტება, როცა ყველა ონლაინ ხმის მიმცემმა მისცა ხმა
 function battleAutoLock(players, perf, votes) {
   const voters = Object.entries(players || {}).filter(([id, p]) => isOnline(p) && !(perf || {})[id]);
@@ -140,7 +154,7 @@ const SOUND_EVENTS = [
 const TEXT_KEYS = [
   ['wait_start', 'ველოდებით დაწყებას'], ['wait_others', 'ველოდებით სხვების პასუხს'], ['buzz_first', 'შენ დააჭირე პირველმა'],
   ['too_slow', 'ძალიან ნელი / სხვა იყო სწრაფი'], ['correct', 'სწორია'], ['wrong', 'არასწორია'],
-  ['battle_win', 'ბრძოლის გამარჯვებულის მილოცვა ({name} = სახელი)'], ['board_title', 'ქულების ცხრილის სათაური'], ['podium_title', 'პოდიუმის სათაური'], ['loser', 'ბოლო ადგილის გამოცხადება ({name} = სახელი)']
+  ['battle_win', 'ბრძოლის გამარჯვებულის მილოცვა ({name} = სახელი)'], ['pvote_win', 'მოთამაშეების ხმის მიცემის გამარჯვებული, მაგ. MVP ({name} = სახელი)'], ['board_title', 'ქულების ცხრილის სათაური'], ['podium_title', 'პოდიუმის სათაური'], ['loser', 'ბოლო ადგილის გამოცხადება ({name} = სახელი)']
 ];
 const DEFAULT_TEXTS = {
   wait_start: ['ცოტაც და დავიწყებთ! გაითბე თითები.', 'წამყვანი ჯერ წყალს სვამს. მოიცადე ცოტა.', 'ყველა იკრიბება... ზოგი ჯერ ფეხსაცმელს იცმევს.', 'ტვინი ჩართე, თამაში მალე იწყება!', 'ერთი ღრმა ამოსუნთქვა. ფაცი თუ ფუცი მალე გაირკვევა!'],
@@ -149,6 +163,7 @@ const DEFAULT_TEXTS = {
   too_slow: ['ამჯერად სხვა იყო უფრო სწრაფი.', 'ნელი აღმოჩნდი, მაგრამ ლამაზი.', 'ლოკოკინამაც გაგასწრო!', 'ეს კითხვა გამოგეპარა. ბოლო არ არის.', 'ერთი წამით დაგაგვიანდა... იქნებ ორით.'],
   correct: ['სწორია! გენიოსი ხარ... ან გაგიმართლა.', 'ვაიმე, ეს იცოდი?!', 'ბრავო! ტვინი დღეს ჩართულია.', 'სწორია! ახლა ნუ გაამპარტავნდები.', 'ზუსტად! აპლოდისმენტები შენს ტვინს.'],
   wrong: ['ეჰ, არა. მაგრამ თავდაჯერებულად უპასუხე!', 'არასწორია, მაგრამ ლამაზად ცდები.', 'ოხ... გუგლი ახლა ვერ გიშველის.', 'არა-არა-არა! მაგრამ ამას არავინ დაიმახსოვრებს. ალბათ.', 'ამჯერად არა! მომდევნოში გაგიმართლებს.'],
+  pvote_win: ['{name} — საღამოს ვარსკვლავი! ხალხმა აგირჩია!', 'გვირგვინი შენია, {name}! ახლა სიტყვით გამოდი.', '{name}! ხმები დაითვალა, ეჭვი აღარ არის.', 'ტაში {name}-ს! ასეთი პოპულარობა არჩევნებშიც არ ხდება.', '{name} — ჩემპიონი! დანარჩენებს — მომავალ წელს.'],
   battle_win: ['{name} — ბრძოლის მეფე/დედოფალი! დარბაზი შენ გეკუთვნის!', 'გილოცავ, {name}! ხალხმა თქვა თავისი!', '{name} იმარჯვებს! დანარჩენებს — მომავალ წელს.', 'ტაში, {name}! ეს გამარჯვება ისტორიაში შევა... ამ ოთახის ისტორიაში მაინც.', '{name} — ხმების ჩემპიონი! ახლა ავტოგრაფები.'],
   board_title: ['ვინ დგას სათავეში?', 'ქულების ცხრილი: გული დაიჭირეთ!', 'ცხრილი არ იტყუება!', 'ვინ ჭკვიანობს და ვინ მხოლოდ ჩანს?'],
   podium_title: ['ჩემპიონების პოდიუმი!', 'ვინ ავიდა მწვერვალზე?', 'და გამარჯვებულები არიან...', 'დრამის ბგერა, თუ შეიძლება!'],

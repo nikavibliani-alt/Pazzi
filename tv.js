@@ -60,6 +60,7 @@ db.ref('players').on('value', s => { S.players = cleanPlayers(s.val()); if (S.li
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
 db.ref('tstreak').on('value', s => { S.tstreak = s.val() || {}; render(); });
 db.ref('battles').on('value', s => { S.battles = s.val() || null; render(); });
+db.ref('polls').on('value', s => { S.polls = s.val() || null; });
 db.ref('yt').on('value', s => { S.yt = s.val() || null; applyYt(); });
 db.ref('awarded').on('value', s => { S.awarded = s.val() || {}; render(); });
 db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
@@ -76,6 +77,10 @@ function tvStreakCheck() {
 db.ref('live').on('value', s => {
   const l = S.live = s.val() || {};
   handleSignals(l);
+  if (l.mode === 'pvote' && l.round !== S.pround) {
+    if (S.pref) S.pref.off(); S.pround = l.round; S.pvotes = {};
+    S.pref = db.ref('pvotes/' + l.round); S.pref.on('value', v => { S.pvotes = v.val() || {}; if (S.live.phase === 'voting') pollAutoLock(S.players, S.pvotes); render(); });
+  }
   if (l.mode === 'battle' && l.round !== S.bround) {
     if (S.bref) S.bref.off(); S.bround = l.round; S.bvotes = {};
     S.bref = db.ref('bvotes/' + l.round); S.bref.on('value', v => { S.bvotes = v.val() || {}; if (S.live.phase === 'voting') battleAutoLock(S.players, S.live.perf, S.bvotes); render(); });
@@ -134,6 +139,7 @@ function render() {
   if (mode === 'g2' && l.view === 'scoreboard') return renderBoard();
   if (mode === 'final') return renderFinal();
   if (mode === 'battle') return renderBattle();
+  if (mode === 'pvote') return renderPvote();
   let h = '';
   if (mode === 'lobby') {
     const pl = Object.values(S.players);
@@ -397,4 +403,45 @@ function applyYt() {
 function ytFade() {
   if (!ytPlaying()) return; const v0 = ytP.getVolume(); let k = 0;
   const t = setInterval(() => { k++; ytP.setVolume(Math.max(0, Math.round(v0 * (1 - k / 12)))); if (k >= 12) { clearInterval(t); ytP.pauseVideo(); ytP.setVolume(v0); } }, 100);
+}
+
+
+// ───────── მოთამაშეების ხმის მიცემა (MVP): ტვ-ზე მხოლოდ სათაური და რამდენმა მისცა ხმა ─────────
+let pvKey = null;
+const CROWN = '<svg class="crown" viewBox="0 0 64 50" aria-hidden="true"><path d="M5 40 L9 10 L23 25 L32 4 L41 25 L55 10 L59 40 Z" fill="#FFD15C" stroke="#3A0F2A" stroke-width="3" stroke-linejoin="round"/><rect x="5" y="40" width="54" height="7" rx="2" fill="#FFC23D" stroke="#3A0F2A" stroke-width="3"/><circle cx="32" cy="30" r="3.5" fill="#C2185B"/></svg>';
+function renderPvote() {
+  const l = S.live; if (l.phase === 'result') return pvoteResult(l);
+  pvKey = null;
+  const online = Object.values(S.players).filter(isOnline).length, voted = Object.keys(S.pvotes || {}).filter(id => S.players[id]).length;
+  const status = l.phase === 'voting' ? `<div class="cnt">ხმა მისცა</div>` : `<div class="cnt ok">${l.autoLocked ? 'ყველამ მისცა ხმა!' : 'ხმის მიცემა დაიხურა'}</div>`;
+  view(`<div class="scr battle pvote"><div class="sub">ხმის მიცემა</div><div class="title pop">${esc(l.title || '')}</div><div class="pvcount"><b>${voted}</b><span>/${Math.max(online, voted)}</span></div>${status}</div>`, 'pvote|' + l.round + '|' + l.phase);
+}
+// შედეგი: დრამი → მესამე, მეორე, პირველი ზოლებით → გამარჯვებული დიდად + ფეიერვერკი + გვირგვინი + მილოცვა
+function pvoteResult(l) {
+  const key = 'pv' + l.round; if (pvKey === key) return; pvKey = key; boardKey = null; finKey = null; lastHtml = null; lastKey = key;
+  const p = (S.polls || DEFAULT_POLLS)[l.pv] || {}, { list, winners } = pollCount(S.players, S.pvotes);
+  const top = list.filter(x => S.players[x.pid]).slice(0, 3), max = Math.max(1, ...top.map(x => x.n));
+  const place = x => 1 + list.filter(y => y.n > x.n).length;
+  const wins = winners.filter(id => S.players[id]), names = wins.map(id => S.players[id].name).join(' და ');
+  swapScreen(app, `<div class="scr battle pvote"><div class="title pop">${esc(l.title || '')}</div><div class="sub" id="bdrum">${ico('drum')} ${ico('drum')} ${ico('drum')}</div>
+    <div class="bbars" id="pvbars">${top.map((x, i) => `<div class="bbar pvrow ${wins.includes(x.pid) ? 'win' : ''}" data-i="${i}" style="visibility:hidden"><span class="place">${place(x)}</span><span class="pic">${av(S.players[x.pid].avatar)}</span><span class="nm">${esc(S.players[x.pid].name)}</span><span class="track"><span class="fill" style="--w:${Math.round(100 * x.n / max)}%"></span></span><b>${x.n}</b></div>`).join('')}</div>
+    <div class="bwin hidden" id="bwin">${wins.length ? `<div class="bwpics">${wins.map(id => `<span class="pic crowned">${CROWN}${av(S.players[id].avatar)}</span>`).join('')}</div><div class="bwname">${esc(names)}</div><div class="bwtext">${esc(pickText('pvote_win', l.round, names))}</div>` : '<div class="bwname">ხმები არ არის</div>'}</div></div>`, 'slide');
+  ytFade();
+  setTimeout(() => {
+    const d = document.getElementById('bdrum'); if (d) d.classList.add('rolling');
+    const drum = SFX.playStoppable('drumroll');
+    setTimeout(() => {
+      drum.stop(); SFX.crash(); const dd = document.getElementById('bdrum'); if (dd) dd.remove();
+      const rows = [...document.querySelectorAll('.pvrow')].reverse(); // მესამე → მეორე → პირველი
+      rows.forEach((r, k) => setTimeout(() => { r.style.visibility = ''; r.classList.add('pvin'); SFX.play('partly'); }, k * 1100));
+      setTimeout(() => {
+        const bb = document.getElementById('pvbars'), w = document.getElementById('bwin'); if (bb) bb.classList.add('hidden'); if (w) w.classList.remove('hidden');
+        if (!wins.length) return;
+        SFX.play('podium'); runFx('fireworks', {});
+        const win = p.win || {};
+        if (win.sound) SFX.preview(win.sound, 'podium');
+        if (win.media && (win.media.url || win.media.id)) setTimeout(() => showMedia({ url: win.media.url, id: win.media.id, loop: win.media.loop, kind: win.media.kind || (win.media.type === 'video' ? 'video' : undefined) }, win.dur || 4, names), 2600);
+      }, rows.length * 1100 + 1500);
+    }, DRUM_MS);
+  }, ytPlaying() ? 1300 : 200);
 }

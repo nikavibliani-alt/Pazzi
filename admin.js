@@ -2,7 +2,7 @@
 const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, videos: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
 const view = $('#view');
 const MAX_SND_MB = 3, MAX_SND_SEC = 30, MAX_GIF_MB = 2.5, MAX_VID_MB = 4, MAX_VID_SEC = 10, WIN_VID_MB = 10, WIN_VID_SEC = 60;
-const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', streaks: 'სერიები', battles: 'ბრძოლები', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
+const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', streaks: 'სერიები', battles: 'ბრძოლები', polls: 'ხმის მიცემა (MVP)', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
 const TYPE_NAMES = { buzz: 'ბლიცი', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
 const EV_NAME = Object.fromEntries(SOUND_EVENTS);
 const Q_EVENTS = { 1: ['buzz', 'right', 'wrong'], 2: ['reveal', 'scoreboard'] };
@@ -16,6 +16,7 @@ function start() {
   const on = (path, key) => db.ref(path).on('value', s => { M[key] = s.val() || {}; M.loaded[key] = true; onData(key); });
   db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
   on('quizzes', 'quizzes'); on('questions', 'questions'); on('library/images', 'images'); on('library/sounds', 'sounds'); on('library/videos', 'videos'); on('teams', 'teams');
+  db.ref('polls').on('value', s => { M.polls = s.val(); if (M.polls === null && !M.pmade) { M.pmade = true; db.ref('polls').set(DEFAULT_POLLS); } if (M.tab === 'polls') render(false); });
   db.ref('battles').on('value', s => { M.battles = s.val(); if (M.battles === null && !M.bmade) { M.bmade = true; db.ref('battles').set(DEFAULT_BATTLES); } if (M.tab === 'battles') render(false); });
   watchConfig(() => { $('#sideLogo').innerHTML = logoHtml(); document.title = gameName() + ' — ადმინი'; M.loaded.config = true; onData('config'); });
   icons();
@@ -69,6 +70,7 @@ function render(force) {
   else if (M.tab === 'rules') renderRules();
   else if (M.tab === 'streaks') renderStreaks();
   else if (M.tab === 'battles') renderBattles();
+  else if (M.tab === 'polls') renderPolls();
   else if (M.tab === 'images') renderImages();
   else if (M.tab === 'sounds') renderSounds();
   else renderSettings();
@@ -390,6 +392,11 @@ const ACT = {
     else { const m = {}; Object.entries(SOUND_PACKS[k]).forEach(([ev, name]) => { const e = Object.entries(M.sounds).find(([, x]) => x.name === name); m[ev] = e ? e[0] : 'default'; }); u.sounds = Object.assign({}, cur, m); }
     db.ref('config').update(u).then(() => { toast('ხმების ნაკრები: ' + ({ funny: 'სასაცილო', serious: 'სერიოზული', own: 'ჩემი' })[k]); render(true); });
   },
+  // ხმის მიცემა
+  padd() { const id = db.ref('polls').push().key; db.ref('polls/' + id).set({ title: 'ახალი ხმის მიცემა', created: Date.now(), pts: 0, self: false, win: { dur: 4 } }).then(() => renderPolls()); },
+  async pdel(id) { const p = pollsM()[id]; if (p && await ask(`წაიშლება „${p.title}“.`)) db.ref('polls/' + id).remove(); },
+  pclear(id) { db.ref('polls/' + id + '/win/media').remove(); },
+  pprev(id) { SFX.enable(); const w = (pollsM()[id] || {}).win || {}; runFx('fireworks', {}); if (w.sound) SFX.preview(w.sound, 'podium'); if (w.media) showMedia({ url: w.media.url, id: w.media.id, loop: w.media.loop, kind: w.media.type === 'video' ? 'video' : undefined }, w.dur || 4, 'გამარჯვებული'); },
   // ბრძოლები
   badd() { const id = db.ref('battles').push().key; db.ref('battles/' + id).set({ name: 'ახალი ბრძოლა', created: Date.now(), pts: 0, win: { dur: 4, videoDelay: 2 } }).then(() => renderBattles()); },
   async bdel(id) { const b = battlesM()[id]; if (b && await ask(`წაიშლება ბრძოლა „${b.name}“.`)) db.ref('battles/' + id).remove(); },
@@ -582,6 +589,35 @@ async function importMediaLink(url) {
   return null;
 }
 
+// ═════════ მოთამაშეების ხმის მიცემა (MVP) ═════════
+const pollsM = () => M.polls || DEFAULT_POLLS;
+function setPollField(path, v) {
+  const [id, key] = path.split('|'); if (!id) return;
+  let val = v;
+  if (key === 'pts' || key === 'win.dur') val = Math.max(0, Number(v) || 0);
+  if (key === 'self') val = v === true || v === 'true';
+  if (key === 'title') val = String(v).trim() || 'ხმის მიცემა';
+  if (key === 'win.once') return db.ref('polls/' + id + '/win/dur').set(v ? 'once' : 4);
+  if (key === 'win.media.url') val = String(v).trim() ? { type: 'url', url: String(v).trim() } : null;
+  queueSave('p:' + path, () => db.ref('polls/' + id + '/' + key.replace(/\./g, '/').replace(/\/url$/, '')).set(val === '' ? null : val), 0);
+}
+function renderPolls() {
+  const all = pollsM(), ids = Object.keys(all).sort((a, b) => (all[a].created || 0) - (all[b].created || 0)), sounds = Object.entries(M.sounds);
+  const line = (label, ctl) => `<div class="evline" style="grid-template-columns:200px minmax(0,1fr)"><b>${label}</b>${ctl}</div>`;
+  const card = id => {
+    const p = all[id] || {}, w = p.win || {}, m = w.media || null, isUrl = m && m.type === 'url';
+    const thumb = m ? (isUrl ? `<img class="thumb" src="${esc(m.url)}" alt="">` : m.type === 'img' && M.images[m.id] ? `<img class="thumb" src="${M.images[m.id].thumb}" alt="">` : `<span class="chip">${L('film')}ვიდეო</span>`) : '<span class="hint" style="margin:0">არ არის</span>';
+    return `<div class="panel"><div class="row"><input type="text" class="grow" data-pf="${id}|title" value="${esc(p.title || '')}" maxlength="60" style="font-weight:800;font-size:17px"><button class="btn" data-a="pprev" data-id="${id}">${L('play')}გადახედვა</button><button class="btn quiet icon danger" data-a="pdel" data-id="${id}" data-tip="წაშლა">${L('trash-2')}</button></div>
+      ${line('ქულა გამარჯვებულს', `<input type="number" min="0" step="0.5" data-pf="${id}|pts" value="${esc(p.pts || 0)}" style="max-width:120px">`)}
+      ${line('საკუთარ თავს ხმა', `<select data-pf="${id}|self"><option value="false" ${!p.self ? 'selected' : ''}>არ შეიძლება</option><option value="true" ${p.self ? 'selected' : ''}>შეიძლება</option></select>`)}
+      ${line('გამარჯვების GIF / სურათი', `<div><div class="row">${thumb}<span class="grow"></span><label class="btn">${L('upload')}ატვირთვა<input type="file" data-pup="${id}|media" accept="image/*,video/*" hidden></label>${m ? `<button class="btn quiet icon" data-a="pclear" data-id="${id}" data-tip="მოხსნა">${L('x')}</button>` : ''}</div><input type="text" style="margin-top:8px" data-pf="${id}|win.media.url" value="${isUrl ? esc(m.url) : ''}" placeholder="ან ჩასვი ბმული"></div>`)}
+      ${line('რამდენ ხანს ჩანს', `<div class="row"><input type="number" style="max-width:110px" min="1" step="0.5" data-pf="${id}|win.dur" value="${w.dur === 'once' ? '' : esc(w.dur || 4)}" ${w.dur === 'once' ? 'disabled' : ''}><span class="muted">წამი</span><label class="row" style="gap:6px;font-weight:700"><input type="checkbox" data-pf="${id}|win.once" ${w.dur === 'once' ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink)">ერთხელ ბოლომდე</label></div>`)}
+      ${line('გამარჯვების ხმა', `<div class="row"><select data-pf="${id}|win.sound"><option value="">ხმის გარეშე</option>${sounds.map(([sid, x]) => `<option value="${sid}" ${w.sound === sid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><label class="btn">${L('upload')}ატვირთვა<input type="file" data-pup="${id}|sound" accept="audio/*" hidden></label></div>`)}
+    </div>`;
+  };
+  setHTML(view, `<div class="row" style="margin-bottom:16px"><p class="hint grow" style="margin:0">ყველა მოთამაშე ტელეფონით აძლევს ხმას ერთ-ერთ სხვა მოთამაშეს. ტვ-ზე ჯერ მესამე, მეორე და პირველი ადგილი ჩნდება, მერე გამარჯვებული გვირგვინით და ფეიერვერკით. მილოცვის ტექსტები — „პარამეტრებში“. ახალი სათაური შეგიძლია წამყვანის გვერდიდანაც შექმნა.</p><button class="btn primary" data-a="padd">${L('plus')}ახალი</button></div><div class="cols">${ids.map(card).join('')}</div>`);
+}
+
 // ═════════ ბრძოლები ═════════
 const battlesM = () => M.battles || DEFAULT_BATTLES;
 function setBattleField(path, v) {
@@ -663,6 +699,7 @@ document.addEventListener('input', e => {
   else if (t.dataset.imgname) queueSave('in' + t.dataset.imgname, () => db.ref('library/images/' + t.dataset.imgname + '/name').set(t.value));
   else if (t.dataset.sndname) queueSave('sn' + t.dataset.sndname, () => db.ref('library/sounds/' + t.dataset.sndname + '/name').set(t.value));
   else if (t.id === 's_agree') queueSave('agree', () => db.ref('config/agreeText').set(t.value.trim() || null));
+  else if (t.dataset.pf && (t.type === 'text' || t.type === 'number')) { const k = t.dataset.pf, v = t.value; if (!/media\.url$/.test(k)) queueSave('pf:' + k, () => setPollField(k, v), 500); }
   else if (t.dataset.bf && (t.type === 'text' || t.type === 'number')) { const k = t.dataset.bf, v = t.value; if (!/media\.url$/.test(k)) queueSave('bf:' + k, () => setBattleField(k, v), 500); }
   else if (t.id === 's_name') queueSave('gname', () => db.ref('config/gameName').set(t.value.trim() || null));
   else if (t.dataset.tname !== undefined) queueSave('tn' + t.dataset.tname, () => db.ref('teams/' + t.dataset.tname + '/name').set(t.value));
@@ -697,13 +734,18 @@ document.addEventListener('change', async e => {
   else if (t.dataset.replsnd && t.files[0]) { await addSound(t.files[0], t.dataset.replsnd); toast('ხმა ჩანაცვლდა'); }
   else if (t.dataset.evup && t.files[0]) { const id = await addSound(t.files[0]); if (id) { await db.ref('config/sounds/' + t.dataset.evup).set(id); toast('ხმა დაყენდა: ' + EV_NAME[t.dataset.evup]); render(true); } }
   else if (t.dataset.ev) { const m = Object.assign({}, CFG.sounds || {}, { [t.dataset.ev]: t.value }); db.ref('config').update({ sounds: m, soundsOwn: m, soundPack: 'own' }).then(() => render(true)); }
-  else if ((t.dataset.sk && /\.media\.url$/.test(t.dataset.sk)) || (t.dataset.bf && /media\.url$/.test(t.dataset.bf))) { // ბმული → ჩამოტვირთვა და შენახვა
-    const isB = !!t.dataset.bf, k = isB ? t.dataset.bf : t.dataset.sk, url = t.value.trim(), put = v => isB ? setBattleField(k.replace(/\.url$/, ''), v) : setStreakField(k.replace(/\.url$/, ''), v);
+  else if ((t.dataset.sk && /\.media\.url$/.test(t.dataset.sk)) || (t.dataset.bf && /media\.url$/.test(t.dataset.bf)) || (t.dataset.pf && /media\.url$/.test(t.dataset.pf))) { // ბმული → ჩამოტვირთვა და შენახვა
+    const isP = !!t.dataset.pf, isB = !!t.dataset.bf || isP, k = t.dataset.pf || t.dataset.bf || t.dataset.sk, url = t.value.trim(), put = v => isP ? setPollField(k.replace(/\.url$/, ''), v) : t.dataset.bf ? setBattleField(k.replace(/\.url$/, ''), v) : setStreakField(k.replace(/\.url$/, ''), v);
     if (!url) put(null);
     else { toast('ფაილს ვტვირთავ…'); const m = await importMediaLink(url); if (m) { put(m); toast('GIF ჩამოიტვირთა და შეინახა ბიბლიოთეკაში'); } else { put({ type: 'url', url }); note('ამ ბმულიდან ფაილი ვერ ჩამოვტვირთე. ჩამოტვირთე შენ კომპიუტერში და ატვირთე ღილაკით „ატვირთვა“. (ბმულს მაინც ვინახავ, მაგრამ საღამოს შეიძლება არ გამოჩნდეს.)'); } }
-    isB ? renderBattles() : renderStreaks(); }
+    isP ? renderPolls() : isB ? renderBattles() : renderStreaks(); }
   else if (t.dataset.sk) { setStreakField(t.dataset.sk, t.type === 'checkbox' ? t.checked : t.value); if (t.tagName === 'SELECT' || t.type === 'checkbox') renderStreaks(); }
   else if (t.dataset.sksnd && t.files[0]) { const want = streakSoundName(t.dataset.sksnd); const id = await addSound(t.files[0]); if (id) { if (want) await db.ref('library/sounds/' + id + '/name').set(want); setStreakField(t.dataset.sksnd + '.sound', id); toast('ხმა აიტვირთა' + (want ? ': ' + want : '')); renderStreaks(); } }
+  else if (t.dataset.pf) { setPollField(t.dataset.pf, t.type === 'checkbox' ? t.checked : t.value); if (t.tagName === 'SELECT' || t.type === 'checkbox') setTimeout(renderPolls, 50); }
+  else if (t.dataset.pup && t.files[0]) { const f = t.files[0], [pid, what] = t.dataset.pup.split('|'); let v = null;
+    if (what === 'sound') { const id = await addSound(f); if (id) v = id; }
+    else { const isVid = f.type.startsWith('video/'); const id = isVid ? await addVideo(f) : await addImage(f); if (id) v = isVid ? { type: 'video', id, loop: true } : { type: 'img', id }; }
+    if (v) { setPollField(pid + '|' + (what === 'media' ? 'win.media' : 'win.sound'), v); renderPolls(); } }
   else if (t.dataset.bf) { setBattleField(t.dataset.bf, t.type === 'checkbox' ? t.checked : t.value); if (t.tagName === 'SELECT' || t.type === 'checkbox') renderBattles(); }
   else if (t.dataset.bup && t.files[0]) { const f = t.files[0], [bid, what] = t.dataset.bup.split('|'); let v = null;
     if (what === 'video') { toast('ვიდეოს ვტვირთავ…'); const id = await addVideo(f, true); if (id) v = id; }
