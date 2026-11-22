@@ -24,7 +24,7 @@ function start() {
 
 // ───────── ავტომატური შენახვა ─────────
 const pending = new Map();
-function setSaved(ok) { setHTML($('#saveBadge'), ok ? `${L('circle-check-big')}ყველაფერი შენახულია` : `${L('refresh-cw')}ინახება…`); $('#saveBadge').className = 'chip' + (ok ? ' ok' : ''); }
+function setSaved(ok) { ['#saveBadge', '#edSave'].forEach(s => { const el = $(s); if (!el) return; setHTML(el, ok ? `${L('circle-check-big')}${s === '#edSave' ? 'შენახულია' : 'ყველაფერი შენახულია'}` : `${L('refresh-cw')}ინახება…`); el.className = 'chip' + (ok ? ' ok' : '') + (s === '#edSave' ? ' edsave' : ''); }); }
 function queueSave(key, fn, delay) {
   clearTimeout((pending.get(key) || {}).t);
   setSaved(false);
@@ -78,11 +78,15 @@ function render(force) {
 function renderChrome() {
   $('#pageTitle').textContent = TAB_TITLES[M.tab];
   $$('.nav').forEach(b => b.classList.toggle('on', b.dataset.sec === M.tab));
+  const mb = $('#moreBtn'); if (mb) mb.classList.toggle('on', MORE_TABS.some(([k]) => k === M.tab));
   const qz = M.quizzes[M.selQuiz], chip = $('#quizChip');
   chip.hidden = !qz;
   if (qz) { const t = activeQuiz(qz.game) === M.selQuiz; chip.className = 'chip' + (t ? ' star' : ''); setHTML(chip, `${L(t ? 'star' : 'list-checks')}ქვიზი: <b>${esc(qz.name)}</b>${t ? ' · დღეს საღამოს' : ''}`); }
 }
 const activeQuiz = g => (CFG.active || {})['g' + g];
+// ტელეფონზე ქვედა ზოლი: 4 მთავარი + „მეტი“ ამ განყოფილებებით
+const MORE_TABS = [['sounds', 'volume-2', 'ხმები'], ['battles', 'swords', 'ბრძოლები'], ['polls', 'vote', 'ხმის მიცემა (MVP)'], ['settings', 'settings', 'პარამეტრები']];
+const isPhone = () => window.matchMedia('(max-width: 799px)').matches;
 const pic = a => `<span class="pic">${av(a)}</span>`;
 const quizList = game => Object.entries(M.quizzes).filter(([, q]) => q.game === game).sort((a, b) => (a[1].created || 0) - (b[1].created || 0));
 const qOf = qz => Object.entries(M.questions).filter(([, q]) => q.quiz === qz).map(([id, q]) => Object.assign({ id }, q)).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -338,9 +342,13 @@ const ACT = {
     db.ref('questions/' + id).set(q);
   },
   editq(id) { selectQ(id); },
+  moretabs(id, b) { openMenu(b, MORE_TABS.map(([k, icon, label]) => ({ icon, label: (M.tab === k ? '• ' : '') + label, run: () => { M.tab = k; stopPlay(); closeEditor(); render(true); window.scrollTo(0, 0); } }))); },
   more(id, b) {
+    const ids = qOf(M.selQuiz).map(q => q.id), i = ids.indexOf(id);
     openMenu(b, [
       { icon: 'pencil', label: 'რედაქტირება', run: () => selectQ(id) },
+      { icon: 'arrow-up', label: 'ზემოთ აწევა', run: () => moveQ(id, -1), disabled: i <= 0 },
+      { icon: 'arrow-down', label: 'ქვემოთ ჩამოწევა', run: () => moveQ(id, 1), disabled: i >= ids.length - 1 },
       { icon: 'copy', label: 'დუბლირება', run: () => dupQ(id) },
       { icon: 'arrow-right-left', label: 'გადატანა…', run: () => { M.moveIds = [id]; moveModal(); } },
       'sep',
@@ -759,6 +767,29 @@ let dragId = null;
 document.addEventListener('dragstart', e => { const r = e.target.closest && e.target.closest('.qr[draggable]'); if (!r) return; dragId = r.dataset.id; r.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (x) {} });
 document.addEventListener('dragover', e => { const r = e.target.closest && e.target.closest('.qr[draggable]'); if (!r || !dragId) return; e.preventDefault(); $$('.qr.over').forEach(x => x.classList.remove('over')); r.classList.add('over'); });
 document.addEventListener('dragend', () => { dragId = null; $$('.qr.dragging,.qr.over').forEach(x => x.classList.remove('dragging', 'over')); });
+// ზემოთ / ქვემოთ (ტელეფონზე, როცა გადათრევა მოუხერხებელია)
+function moveQ(id, d) {
+  const ids = qOf(M.selQuiz).map(q => q.id), i = ids.indexOf(id), j = i + d;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  ids.splice(j, 0, ids.splice(i, 1)[0]); writeOrder(ids); toast(d < 0 ? 'ზემოთ აიწია' : 'ქვემოთ ჩამოიწია');
+}
+// შეხებით გადათრევა: თითი გეჭიროს ⋮⋮ სახელურზე და გადაათრიე
+let tDrag = null;
+document.addEventListener('touchstart', e => {
+  const g = e.target.closest && e.target.closest('.qr .grip'); if (!g) return;
+  const r = g.closest('.qr'); tDrag = { id: r.dataset.id, over: null }; r.classList.add('dragging'); e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchmove', e => {
+  if (!tDrag) return; e.preventDefault();
+  const t = e.touches[0], el = document.elementFromPoint(t.clientX, t.clientY), r = el && el.closest && el.closest('.qr[draggable]');
+  $$('.qr.over').forEach(x => x.classList.remove('over')); if (r && r.dataset.id !== tDrag.id) { r.classList.add('over'); tDrag.over = r.dataset.id; } else tDrag.over = null;
+  if (t.clientY < 70) window.scrollBy(0, -12); else if (t.clientY > innerHeight - 110) window.scrollBy(0, 12);
+}, { passive: false });
+document.addEventListener('touchend', () => {
+  if (!tDrag) return; const { id, over } = tDrag; tDrag = null; $$('.qr.dragging,.qr.over').forEach(x => x.classList.remove('dragging', 'over'));
+  if (!over) return; const ids = qOf(M.selQuiz).map(q => q.id), from = ids.indexOf(id), to = ids.indexOf(over);
+  if (from < 0 || to < 0) return; ids.splice(to, 0, ids.splice(from, 1)[0]); writeOrder(ids);
+});
 document.addEventListener('drop', e => {
   const r = e.target.closest && e.target.closest('.qr[draggable]'); if (!r || !dragId) return; e.preventDefault();
   const ids = qOf(M.selQuiz).map(q => q.id), from = ids.indexOf(dragId), to = ids.indexOf(r.dataset.id);

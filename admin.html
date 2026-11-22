@@ -35,8 +35,15 @@
     <main class="content" id="view"></main>
   </div>
 </div>
+<nav class="tabbar" id="tabbar" aria-label="განყოფილებები">
+  <button class="nav tab" data-sec="quiz"><i data-lucide="list-checks"></i><span>ქვიზები</span></button>
+  <button class="nav tab" data-sec="rules"><i data-lucide="scale"></i><span>წესები</span></button>
+  <button class="nav tab" data-sec="streaks"><i data-lucide="flame"></i><span>სერიები</span></button>
+  <button class="nav tab" data-sec="images"><i data-lucide="image"></i><span>მედია</span></button>
+  <button class="tab" id="moreBtn" data-a="moretabs"><i data-lucide="menu"></i><span>მეტი</span></button>
+</nav>
 <aside class="drawer" id="drawer" aria-label="კითხვის რედაქტორი">
-  <div class="drawer-head"><h2 id="drawerTitle">კითხვა</h2><button class="btn quiet icon" data-a="closeed" data-tip="დახურვა (Esc)"><i data-lucide="x"></i></button></div>
+  <div class="drawer-head"><button class="btn edback" data-a="closeed"><i data-lucide="arrow-left"></i>უკან</button><h2 id="drawerTitle">კითხვა</h2><span class="chip ok edsave" id="edSave"></span><button class="btn quiet icon edx" data-a="closeed" data-tip="დახურვა (Esc)"><i data-lucide="x"></i></button></div>
   <div class="drawer-body" id="edBody"></div>
 </aside>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

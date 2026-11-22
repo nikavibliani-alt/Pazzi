@@ -29,12 +29,12 @@ const note = text => popup({ text, ok: 'კარგი', cancel: false });
 function openMenu(anchor, items) {
   closeMenu();
   const m = document.createElement('div'); m.className = 'menu'; m.id = 'menu'; m.setAttribute('role', 'menu');
-  m.innerHTML = items.map((it, i) => it === 'sep' ? '<hr>' : `<button class="mi ${it.danger ? 'danger' : ''}" data-mi="${i}" role="menuitem">${L(it.icon)}${esc(it.label)}</button>`).join('');
+  m.innerHTML = items.map((it, i) => it === 'sep' ? '<hr>' : `<button class="mi ${it.danger ? 'danger' : ''}" data-mi="${i}" role="menuitem" ${it.disabled ? 'disabled' : ''}>${L(it.icon)}${esc(it.label)}</button>`).join('');
   document.body.appendChild(m); icons();
   const r = anchor.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
   m.style.top = (r.bottom + h + 8 > window.innerHeight ? r.top - h - 6 : r.bottom + 6) + 'px';
-  m.addEventListener('click', e => { const b = e.target.closest('[data-mi]'); if (!b) return; const it = items[Number(b.dataset.mi)]; closeMenu(); it.run(); });
+  m.addEventListener('click', e => { const b = e.target.closest('[data-mi]'); if (!b || b.disabled) return; const it = items[Number(b.dataset.mi)]; closeMenu(); it.run(); });
   setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
 }
 function outside(e) { const m = document.getElementById('menu'); if (m && !m.contains(e.target)) closeMenu(); }
