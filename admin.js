@@ -160,7 +160,8 @@ function drawEditor() {
   const im = c.img && M.images[c.img];
   h += `<div class="sect"><h4>${L('image')}სურათი · ჩანს ტვ-ზე</h4><div class="row">${im ? `<img class="thumb" src="${im.thumb}" alt="">` : '<span class="hint">სურათი არ არის</span>'}<span class="grow"></span><button class="btn" data-a="pickimg">${L('images')}ბიბლიოთეკიდან</button><label class="btn">${L('upload')}ატვირთვა<input type="file" id="e_img_up" accept="image/*" hidden></label>${c.img ? `<button class="btn quiet icon danger" data-a="rmimg" data-tip="სურათის მოხსნა">${L('x')}</button>` : ''}</div></div>`;
   h += `<div class="sect"><h4>${L('film')}მოკლე ვიდეო · ტვ-ზე</h4><div class="row"><select id="e_vid" class="grow"><option value="">ვიდეოს გარეშე</option>${Object.entries(M.videos).map(([id, v]) => `<option value="${id}" ${c.vid === id ? 'selected' : ''}>${esc(v.name)} (${Math.round(v.dur || 0)} წმ)</option>`).join('')}</select><label class="btn">${L('upload')}ატვირთვა<input type="file" id="e_vid_up" accept="video/*" hidden></label></div><p class="hint">მაქსიმუმ ${MAX_VID_SEC} წამი და ${MAX_VID_MB} მბ.</p></div>`;
-  h += `<div class="sect"><h4>${L('monitor')}სურათი / ვიდეო / მუსიკა ტვ-ზე</h4><select id="e_mauto"><option value="" ${!c.mediaAuto ? 'selected' : ''}>როგორც თამაშის წესებშია (${esc((MEDIA_MODES.find(m => m[0] === rulesG(c.game || 2).media) || MEDIA_MODES[0])[1])})</option>${MEDIA_MODES.map(([v, l]) => `<option value="${v}" ${c.mediaAuto === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
+  if ((c.game || 2) === 1) h += `<div class="sect"><h4>${L('monitor')}როდის გამოჩნდეს სურათი / ვიდეო ტვ-ზე</h4><select id="e_mwhen"><option value="" ${!c.mediaWhen ? 'selected' : ''}>ნაგულისხმევი (${esc(G1_WHEN.find(m => m[0] === g1WhenNorm(rulesG(1).media))[1])})</option>${G1_WHEN.map(([v, l]) => `<option value="${v}" ${c.mediaWhen === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select><p class="hint">ტვ-ზე მარტო სურათი ან ვიდეო ჩანს, ტექსტის გარეშე. მუსიკა მხოლოდ ღილაკით ირთვება, ტვ-ზე ქულები რჩება. წამყვანის ღილაკები „ჩვენება / დამალვა“ ყოველთვის მუშაობს.</p></div>`;
+  else h += `<div class="sect"><h4>${L('monitor')}სურათი / ვიდეო / მუსიკა ტვ-ზე</h4><select id="e_mauto"><option value="" ${!c.mediaAuto ? 'selected' : ''}>როგორც თამაშის წესებშია (${esc((MEDIA_MODES.find(m => m[0] === rulesG(c.game || 2).media) || MEDIA_MODES[0])[1])})</option>${MEDIA_MODES.map(([v, l]) => `<option value="${v}" ${c.mediaAuto === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>`;
   h += `<div class="sect"><h4>${L('music')}მუსიკა / კლიპი · მაგ. „გამოიცანი სიმღერა“</h4><div class="row"><select id="e_snd" class="grow">${sndOptions(c.snd, '<option value="">კლიპის გარეშე</option>')}</select>${c.snd ? `<button class="btn icon" data-a="playsnd" data-id="${c.snd}" data-tip="მოსმენა">${L('play')}</button>` : ''}<label class="btn icon" data-tip="ახლის ატვირთვა">${L('upload')}<input type="file" id="e_snd_up" accept="audio/*" hidden></label></div></div>`;
   const sf = c.sfx || {};
   h += `<div class="sect"><h4>${L('volume-2')}ხმები ამ კითხვისთვის</h4><p class="hint">ჩვეულებრივ: „ნაგულისხმევი“ — თამაშის საერთო ხმა (ხმები → თამაშის ხმები).</p>` +
@@ -231,6 +232,10 @@ async function drawPreview() {
     if (M.imgData[c.img] === undefined) { M.imgData[c.img] = null; db.ref('libdata/img/' + c.img).once('value').then(s => { M.imgData[c.img] = s.val() || ''; drawPreview(); }); }
     imgHtml = M.imgData[c.img] ? `<img class="qimg" src="${M.imgData[c.img]}" alt="">` : '<div class="hint">სურათი იტვირთება…</div>';
   }
+  if ((c.game || 2) === 1) { // ბლიცი: ტვ ტექსტს არასდროს აჩვენებს
+    box.innerHTML = c.img ? `<div class="scr mediafull"><div class="imgbox">${imgHtml}</div></div>` : `<div class="scr"><div class="sub">ტვ-ზე ჩანს მხოლოდ გუნდების ქულები${c.snd ? ` (${ico('music')} მუსიკისას)` : ''}${c.vid ? ' · ვიდეო — მთელ ეკრანზე' : ''}. კითხვას და პასუხს ტვ არ აჩვენებს.</div></div>`;
+    return;
+  }
   box.innerHTML = tvPreviewHtml({ type: c.type, text: c.text, options: c.options, snd: c.snd, img: c.img }, imgHtml);
 }
 function collect() {
@@ -241,7 +246,7 @@ function collect() {
   scheduleQSave(); drawPreview();
 }
 function qDoc(c) {
-  const d = { quiz: c.quiz, game: c.game, order: c.order, type: c.type, text: c.text || '', answer: c.answer || '', img: c.img || null, snd: c.snd || null, sfx: c.sfx && Object.keys(c.sfx).length ? c.sfx : null, rules: c.rules && Object.keys(c.rules).length ? c.rules : null, wrongFx: c.wrongFx || null, vid: c.vid || null, mediaAuto: c.mediaAuto === 'auto' ? 'auto' : null };
+  const d = { quiz: c.quiz, game: c.game, order: c.order, type: c.type, text: c.text || '', answer: c.answer || '', img: c.img || null, snd: c.snd || null, sfx: c.sfx && Object.keys(c.sfx).length ? c.sfx : null, rules: c.rules && Object.keys(c.rules).length ? c.rules : null, wrongFx: c.wrongFx || null, vid: c.vid || null, mediaAuto: c.mediaAuto || null, mediaWhen: c.mediaWhen || null };
   if (c.type !== 'text' && c.type !== 'buzz') { d.options = arr(c.options); const k = arr(c.correct).map(Number); if (k.length && c.type !== 'poll') d.correct = k; }
   return d;
 }
@@ -253,6 +258,7 @@ function scheduleQSave() {
 function selectQ(id) {
   if (M.selQ && M.selQ !== id) run('q:' + M.selQ);
   M.selQ = id; const q = M.questions[id];
+  if (!q) return; // ჯერ არ ჩამოსულა ბაზიდან — რედაქტორი გაიხსნება, როცა ჩამოვა
   M.cur = JSON.parse(JSON.stringify(q)); M.cur.options = arr(M.cur.options); M.cur.correct = arr(M.cur.correct); M.cur.sfx = Object.assign({}, M.cur.sfx || {}); M.cur.rules = Object.assign({}, M.cur.rules || {});
   const n = M.cur.type === 'poll' ? 2 : (M.cur.type === 'text' || M.cur.type === 'buzz' ? 0 : 4);
   while (M.cur.options.length < n) M.cur.options.push('');
@@ -288,7 +294,7 @@ function doMove(qzid) {
     else { d.type = q.type; d.options = opts.length ? opts : null; d.correct = corr.length ? corr : null; }
     if (q.sfx && tz.game === q.game) d.sfx = q.sfx; // საკუთარი ხმები რჩება, თუ თამაში იგივეა
     d.rules = q.rules && tz.game === q.game ? q.rules : null;
-    d.wrongFx = q.wrongFx || null; d.vid = q.vid || null; d.mediaAuto = q.mediaAuto || null;
+    d.wrongFx = q.wrongFx || null; d.vid = q.vid || null; d.mediaAuto = q.mediaAuto || null; d.mediaWhen = q.mediaWhen || null;
     Object.entries(d).forEach(([k, v]) => { u['questions/' + id + '/' + k] = v; });
     if (M.selQ === id) { pending.delete('q:' + id); closeEditor(); }
     M.sel.delete(id);
@@ -517,7 +523,7 @@ function renderRules() {
     ${line(RULE_NAMES.pts, c('g1', 'pts', g1.pts))}
     ${line(RULE_NAMES.penalty, c('g1', 'penalty', g1.penalty))}
     ${line(RULE_NAMES.afterWrong, c('g1', 'afterWrong', g1.afterWrong))}
-    ${line('სურათი / ვიდეო / მუსიკა ტვ-ზე', sel('g1.media', g1.media, MEDIA_MODES), 'კითხვის დაწყებისას. თითო კითხვას შეგიძლია სხვა მისცე.')}
+    ${line('როდის გამოჩნდეს სურათი / ვიდეო ტვ-ზე', sel('g1.media', g1WhenNorm(g1.media), G1_WHEN), 'ტვ-ზე მარტო სურათი/ვიდეო, ტექსტის გარეშე. მუსიკა — მხოლოდ ღილაკით. თითო კითხვას შეგიძლია სხვა მისცე რედაქტორში.')}
     ${g1.afterWrong === 'all' ? line(RULE_NAMES.sameTeamTwice, c('g1', 'sameTeamTwice', g1.sameTeamTwice), '„არა“ — ვინც შეცდა, ჯერ სხვამ უნდა სცადოს.') : ''}
   </div><p class="hint">ცვლილებები მაშინვე ინახება. წამყვანის გვერდზე თითო კითხვასთან ჩანს მოქმედი წესები.</p></div></div>`);
 }
@@ -725,6 +731,7 @@ document.addEventListener('change', async e => {
   else if (t.id === 'e_vid') { setField('vid', t.value); drawQListSoon(); }
   else if (t.id === 'e_vid_up' && t.files[0]) { const id = await addVideo(t.files[0]); if (id) { setField('vid', id); drawQListSoon(); } }
   else if (t.id === 'e_mauto') { M.cur.mediaAuto = t.value || null; scheduleQSave(); }
+  else if (t.id === 'e_mwhen') { M.cur.mediaWhen = t.value || null; scheduleQSave(); }
   else if (t.id === 'e_fx_type') setFx(t.value === 'effect' ? { type: 'effect', name: 'tomatoes' } : t.value ? { type: t.value, id: null } : null);
   else if (t.id === 'e_fx_eff') setFx({ type: 'effect', name: t.value });
   else if (t.id === 'e_fx_vid') setFx({ type: 'video', id: t.value || null });

@@ -162,6 +162,7 @@ function buzz() {
     if (l.lastWrong && l.lastWrong !== key) l.lastWrong = null;
     l.buzz = { pid: S.pid, name: m.name, avatar: m.avatar, team: m.team, key };
     l.phase = 'buzzed';
+    g1AutoShow(l, 'buzz');
     return l;
   }, null, false);
 }

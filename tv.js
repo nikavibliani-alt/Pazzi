@@ -148,7 +148,7 @@ function render() {
     h = `<div class="scr"><div class="title pop">შესვენება</div><div class="sub">სასმელი, საჭმელი, ჭორაობა!</div>${teamCols(null)}</div>`;
   } else if (mode === 'g1') h = g1();
   else if (mode === 'g2') h = g2();
-  view(h, mode + '|' + (l.qid || '') + '|' + (l.phase || '') + '|' + (l.buzz ? l.buzz.pid : '') + '|' + ((l.media || {}).show || ''));
+  view(h, mode + '|' + (l.qid || '') + '|' + (l.phase || '') + '|' + (l.buzz ? l.buzz.pid : '') + '|' + ((l.media || {}).show || '') + '|' + (l.audio && l.audio.cmd === 'play' ? 'm' : ''));
   placeVideo();
 }
 
@@ -158,7 +158,8 @@ function g1() {
   let over = '';
   const b = l.buzz;
   if (b) over = `<div class="buzzcard ${l.phase === 'right' ? 'won' : ''}" style="${teamsOn() ? `background:${TEAM_HUES[b.team] || 'var(--bg)'}` : ''}"><div class="pic slam">${av(b.avatar)}</div><div class="nm slam">${esc(b.name)}</div>${teamsOn() ? `<div class="tn rise">${esc(teamName(S.teams, b.team))}</div>` : ''}${l.phase === 'right' ? `<div class="title pop" style="font-size:calc(var(--u)*6)">სწორია!</div>` : ''}</div>`;
-  return `<div class="scr g1scr">${over}<div class="title pop" style="font-size:calc(var(--u)*3.6)">ბლიცი</div>${l.phase === 'missed' ? '<div class="cnt">ამ კითხვაზე ღილაკი დაიკეტა</div>' : ''}${teamCols(l)}</div>`;
+  const music = l.qid && l.q && l.q.snd && l.audio && l.audio.cmd === 'play' ? `<span class="g1music pop">${ico('music')}</span>` : '';
+  return `<div class="scr g1scr">${over}<div class="title pop" style="font-size:calc(var(--u)*3.6)">ბლიცი${music}</div>${l.phase === 'missed' ? '<div class="cnt">ამ კითხვაზე ღილაკი დაიკეტა</div>' : ''}${teamCols(l)}</div>`;
 }
 // გუნდების სვეტები: ქულა ზემოთ, სვეტი იზრდება ყოველ ქულაზე; სერიაზე ცეცხლი
 function teamCols(l) {

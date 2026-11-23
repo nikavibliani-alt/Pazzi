@@ -216,6 +216,16 @@ const DEFAULT_RULES = {
 };
 // სურათი / ვიდეო / მუსიკა ტვ-ზე კითხვის დაწყებისას
 const MEDIA_MODES = [['manual', 'მხოლოდ როცა დავაჭერ'], ['img', 'სურათი თავისით, ვიდეო და მუსიკა — დაჭერით'], ['auto', 'ყველაფერი თავისით']];
+// თამაში 1: როდის გამოჩნდეს სურათი/ვიდეო ტვ-ზე (ტექსტის გარეშე, მთელ ეკრანზე)
+const G1_WHEN = [['start', 'როცა კითხვა იწყება'], ['buzz', 'როცა ვინმე ღილაკს დააჭერს'], ['right', 'როცა სწორად მოვნიშნავ (გახსნა)'], ['manual', 'მხოლოდ როცა დავაჭერ ღილაკს']];
+const g1WhenNorm = v => G1_WHEN.some(x => x[0] === v) ? v : (v === 'img' || v === 'auto') ? 'start' : 'manual';
+function g1WhenOf(q) { return g1WhenNorm((q && q.mediaWhen) || rulesG(1).media); }
+// ავტომატური ჩვენება ლაივზე (ერთხელ კითხვაზე; „დამალვის“ შემდეგ თავიდან აღარ ჩნდება)
+function g1AutoShow(l, when) {
+  if (!l || !l.q || l.q.mw !== when || l.autoShown) return;
+  const show = l.q.img ? 'img' : l.q.vid ? 'video' : null; if (!show) return;
+  l.media = { show, n: Date.now() }; l.autoShown = true;
+}
 function mediaModeOf(q) { return (q && q.mediaAuto) || rulesG((q && q.game) || 2).media || 'manual'; }
 const RULE_OPTS = {
   onlyFirst: [[false, 'ყველა სწორი იღებს ქულას'], [true, 'ქულას იღებს მხოლოდ პირველი სწორი']],
