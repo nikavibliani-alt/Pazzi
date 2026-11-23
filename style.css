@@ -837,3 +837,13 @@ body.host.touch .teamrow .btn.icon { --h: 52px; }
   body.host.touch #view > .ctl-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; }
   body.host.touch .ctl-grid > .qlist { position: sticky; top: 84px; max-height: calc(100vh - 200px); overflow-y: auto; }
 }
+.fresh-card { max-width: 520px; }
+.fresh-list { margin: 4px 0 12px 20px; padding: 0; line-height: 1.6; }
+.fresh-type { display: flex; flex-direction: column; gap: 8px; font-size: 15px; margin: 12px 0 4px; }
+.fresh-type input { font-size: 18px; }
+.btn.fresh-go { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; min-width: 240px; }
+.fresh-go .fresh-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(214, 69, 69, .18); pointer-events: none; }
+.fresh-go .fresh-lbl { position: relative; }
+.btn.fresh-go.armed { background: var(--bad); color: #fff; border-color: var(--bad); }
+.topbar2 .grow { flex: 1; }
+.topbar2 .fresh-top { color: var(--bad); }

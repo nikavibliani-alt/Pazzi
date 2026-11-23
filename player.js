@@ -49,11 +49,12 @@ function checkStreak() {
   if (hit) setTimeout(() => playStep(hit.step, { score: '+' + fmtPts(Number(S.awarded[qid] && S.awarded[qid][S.pid]) || 0) }), 1700);
 }
 
-function forget() { store.del('pz_pid'); store.del('pz_code'); S.pid = null; }
+function forget() { store.del('pz_pid'); store.del('pz_code'); store.del('pz_sid'); S.pid = null; }
 
 db.ref('session').on('value', s => {
   S.session = s.val(); S.ready.session = true;
   if (S.pid && S.session && store.get('pz_code') && store.get('pz_code') !== String(S.session.code)) forget();
+  if (S.pid && S.session && S.session.sid && store.get('pz_sid') !== String(S.session.sid)) forget(); // ახალი საღამო — ძველი ტელეფონები თავიდან შემოდიან
   render();
 });
 db.ref('players').on('value', s => {
@@ -126,7 +127,7 @@ async function join() {
     if (!lock.committed) { f.err = 'ეს პერსონაჟი უკვე დაკავებულია, აირჩიე სხვა'; f.avatar = null; S.busy = false; return render(); }
     const team = null; // გუნდებს წამყვანი ანაწილებს
     await db.ref('players/' + pid).set({ name, avatar: f.avatar, team, joined: TS });
-    store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
+    store.set('pz_pid', pid); store.set('pz_code', String(S.session.code)); store.set('pz_sid', String(S.session.sid || ''));
     S.pid = pid; if (S.curQ) bindAns();
   } catch (e) { f.err = 'შესვლა ვერ მოხერხდა, სცადე თავიდან'; }
   S.busy = false; presence(); render(); updateSndBtn();
@@ -138,13 +139,13 @@ async function rejoinByCode() {
   if (!/^\d{4}$/.test(code)) { f.err = 'ჩაწერე წამყვანისგან მიღებული 4-ციფრიანი კოდი'; return render(); }
   const pid = (await db.ref('rejoin/' + code).once('value')).val();
   if (!pid || !S.players[pid]) { f.err = 'ეს კოდი არ მუშაობს. სთხოვე წამყვანს ახალი.'; return render(); }
-  store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
+  store.set('pz_pid', pid); store.set('pz_code', String(S.session.code)); store.set('pz_sid', String(S.session.sid || ''));
   S.pid = pid; f.err = ''; f.byCode = false; if (S.curQ) bindAns(); presence(); render(); updateSndBtn();
 }
 function rejoin(yes) {
   const f = S.form, pid = f.match; f.match = null;
   if (yes && pid && S.players[pid]) {
-    store.set('pz_pid', pid); store.set('pz_code', String(S.session.code));
+    store.set('pz_pid', pid); store.set('pz_code', String(S.session.code)); store.set('pz_sid', String(S.session.sid || ''));
     S.pid = pid; if (S.curQ) bindAns(); presence();
   } else { f.name = ''; f.err = 'აირჩიე სხვა სახელი'; }
   render();

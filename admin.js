@@ -429,6 +429,7 @@ const ACT = {
   skclear(path) { setStreakField(path + '.media', null); renderStreaks(); },
   resetev(ev) { db.ref('config/sounds/' + ev).set('default').then(() => render(true)); },
   resettext(k) { db.ref('config/texts/' + k).remove().then(() => render(true)); },
+  async fresh() { if (await freshEvening()) toast('ახალი საღამო დაიწყო'); },
   savepin() {
     const v = $('#s_pin').value.trim();
     if (v.length < 4) { note('PIN-ში მინიმუმ 4 სიმბოლო უნდა იყოს.'); return; }
@@ -685,6 +686,7 @@ function renderSettings() {
   setHTML(view, `<div class="cols"><div><div class="panel"><h3>${L('type')}თამაშის სახელი</h3><input type="text" id="s_name" value="${esc(gameName())}" maxlength="30"><p class="hint">ჩანს ლოგოში ტელეფონზე და ტვ-ზე.</p></div>
   <div class="panel"><h3>${L('users')}გუნდები</h3><p class="hint">გუნდების რაოდენობა და სახელები ახლა „წესებშია“.</p><button class="btn" data-sec="rules">${L('scale')}წესებზე გადასვლა</button></div>
   <div class="panel"><h3>${L('check')}„ხელს ვაწერ“ შესვლისას</h3><textarea id="s_agree" rows="3">${esc(agreeText())}</textarea><p class="hint">ტელეფონზე ჩანს შესვლისას. ვიდრე არ მონიშნავენ, შესვლის ღილაკი არ ირთვება.</p></div>
+  <div class="panel"><h3>${L('sparkles')}ახალი საღამოს დაწყება</h3><p class="hint">წაშლის ყველა მოთამაშეს, ქულას, გუნდებში განაწილებას, პასუხებს, ბრძოლების და ხმის მიცემის შედეგებს და თამაშების პროგრესს. ტელეფონები თავიდან შემოდიან ახალი კოდით. ქვიზები, მედია, წესები, გუნდების სახელები და PIN რჩება.</p><button class="btn danger" data-a="fresh" id="freshBtn">${L('sparkles')}ახალი საღამოს დაწყება</button></div>
   <div class="panel"><h3>${L('lock')}წამყვანის და ადმინის PIN</h3><div class="row"><input type="text" id="s_pin" class="grow" value="${esc(CFG.pin || DEFAULT_PIN)}" maxlength="12"><button class="btn primary" data-a="savepin">${L('check')}შენახვა</button></div><p class="hint">PIN მსუბუქი დაცვაა, რეპოზიტორია საჯაროა.</p></div></div>
   <div class="panel"><h3>${L('message-circle')}სასაცილო ტექსტები</h3><p class="hint">თითო ხაზი = ერთი ვარიანტი, თამაში შემთხვევით ირჩევს. ბოლო ადგილის ტექსტში {name} ჩაანაცვლებს სახელს.</p>${TEXT_KEYS.map(([k, label]) => `<label class="f">${label}</label><textarea data-text="${k}" rows="${Math.min(7, textList(k).length + 1)}">${esc(textList(k).join('\n'))}</textarea><button class="btn quiet" data-a="resettext" data-id="${k}" style="margin-top:6px">${L('rotate-ccw')}ნაგულისხმევზე დაბრუნება</button>`).join('')}</div></div>`);
 }

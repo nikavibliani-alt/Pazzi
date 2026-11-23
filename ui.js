@@ -41,3 +41,45 @@ function outside(e) { const m = document.getElementById('menu'); if (m && !m.con
 function closeMenu() { const m = document.getElementById('menu'); if (m) m.remove(); document.removeEventListener('mousedown', outside, true); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 window.addEventListener('scroll', closeMenu, true);
+
+// ───────── „ახალი საღამოს დაწყება“: ყველაფრის განულება (კითხვები, მედია, წესები, გუნდების სახელები, PIN რჩება) ─────────
+const FRESH_DEL = ['ყველა მოთამაშე (ტელეფონებმა თავიდან უნდა შემოვიდნენ)', 'ყველა ქულა და გუნდებში განაწილება', 'სერიები, პასუხები, ღილაკზე დაჭერები', 'ბრძოლების და ხმის მიცემის შედეგები', 'თამაშების პროგრესი და „საღამო აქამდე“'];
+const FRESH_KEEP = 'რჩება: ქვიზები და კითხვები, სურათები, ვიდეოები, ხმები, წესები, პარამეტრები, გუნდების სახელები და PIN.';
+// დაცვა შემთხვევითი დაჭერისგან: ღილაკი მუშაობს 2 წამით დაჭერილ მდგომარეობაში ან „კი“-ს ჩაწერის შემდეგ
+function confirmFresh() {
+  return new Promise(res => {
+    const old = document.getElementById('pop'); if (old) old.remove();
+    const d = document.createElement('div'); d.className = 'pop-back'; d.id = 'pop';
+    d.innerHTML = `<div class="pop-card fresh-card" role="dialog" aria-modal="true"><h4>ახალი საღამოს დაწყება</h4><p><b>წაიშლება:</b></p><ul class="fresh-list">${FRESH_DEL.map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="muted">${esc(FRESH_KEEP)}</p><p class="muted">ტვ დაბრუნდება შესვლის ეკრანზე, თამაშს ახალი კოდი ექნება.</p>
+      <label class="fresh-type">დასადასტურებლად ჩაწერე <b>კი</b> ან 2 წამი ხანგრძლივად დააჭირე ღილაკს<input type="text" id="freshYes" autocomplete="off" autocapitalize="off" placeholder="კი"></label>
+      <div class="pop-acts"><button class="btn quiet" data-pop="no">გაუქმება</button><button class="btn danger fresh-go" id="freshGo"><span class="fresh-fill"></span><span class="fresh-lbl">დააჭირე და გეჭიროს 2 წამი</span></button></div></div>`;
+    const btn = d.querySelector('#freshGo'), fill = d.querySelector('.fresh-fill'), lbl = d.querySelector('.fresh-lbl'), inp = d.querySelector('#freshYes');
+    let timer = null, t0 = 0, raf = 0, closed = false;
+    const done = v => { if (closed) return; closed = true; cancelHold(); document.removeEventListener('keydown', key, true); d.remove(); res(v); };
+    const typedOk = () => inp.value.trim() === 'კი';
+    const sync = () => { const ok = typedOk(); btn.classList.toggle('armed', ok); lbl.textContent = ok ? 'წაშლა და ახალი საღამო' : 'დააჭირე და გეჭიროს 2 წამი'; };
+    const tick = () => { fill.style.width = Math.min(100, (Date.now() - t0) / 20) + '%'; raf = requestAnimationFrame(tick); };
+    const startHold = e => { if (typedOk()) return; e.preventDefault(); t0 = Date.now(); tick(); timer = setTimeout(() => done(true), 2000); };
+    function cancelHold() { clearTimeout(timer); timer = null; cancelAnimationFrame(raf); fill.style.width = '0'; }
+    btn.addEventListener('pointerdown', startHold);
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, () => { if (timer) cancelHold(); }));
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+    btn.addEventListener('click', () => { if (typedOk()) done(true); });
+    inp.addEventListener('input', sync);
+    const key = e => { if (e.key === 'Escape') { e.preventDefault(); done(false); } else if (e.key === 'Enter' && typedOk()) { e.preventDefault(); done(true); } };
+    d.addEventListener('click', e => { if (e.target.closest('[data-pop=no]') || e.target === d) done(false); });
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(d);
+  });
+}
+async function freshEvening() {
+  if (!(await confirmFresh())) return false;
+  const [s, t] = await Promise.all([db.ref('session').once('value'), db.ref('teams').once('value')]);
+  const oldCode = String((s.val() || {}).code || ''); let code;
+  do code = String(Math.floor(1000 + Math.random() * 9000)); while (code === oldCode);
+  const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, tstreak: null, bvotes: null, pvotes: null, yt: null,
+    live: { mode: 'lobby' }, session: { code, sid: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nextTeam: 0, started: Date.now() } };
+  Object.keys(t.val() || {}).forEach(i => { u['teams/' + i + '/score'] = 0; });
+  await db.ref().update(u);
+  return true;
+}

@@ -219,7 +219,7 @@ function playersSection() {
   <div class="panel"><h3>${L('key-round')}თამაშის კოდი</h3><div class="bigcode">${esc(S.session ? S.session.code : '')}</div><p class="muted">ტელეფონზე: ${esc(location.href.replace(/host\.html.*$/, '').replace(/^https?:\/\//, ''))}</p></div>
   <div class="panel"><h3>${L('volume-2')}ხმის შემოწმება ტვ-ზე</h3><div class="row"><button class="btn" data-act="sfx" data-id="right">${L('check')}სწორი</button><button class="btn" data-act="sfx" data-id="wrong">${L('x')}არასწორი</button></div></div>
   <div class="panel"><h3>${L('rotate-ccw')}ქულების განულება</h3><p class="muted">ყველა ქულა (გუნდების და მოთამაშეების) გახდება 0. მოთამაშეები და კითხვები დარჩება.</p><button class="btn" data-act="resetscores">${L('rotate-ccw')}ქულების განულება</button></div>
-  <div class="panel"><h3>${L('trash-2')}ახალი თამაში</h3><p class="muted">წაშლის ყველა მოთამაშეს, ქულას და პასუხს და შექმნის ახალ კოდს. კითხვები და პარამეტრები დარჩება.</p><button class="btn danger" data-act="reset">${L('trash-2')}ყველაფრის განულება</button></div></div></div>`;
+  <div class="panel"><h3>${L('sparkles')}ახალი საღამოს დაწყება</h3><p class="muted">წაშლის ყველა მოთამაშეს, ქულას, გუნდებში განაწილებას, პასუხებს, ბრძოლების და ხმის მიცემის შედეგებს და „საღამო აქამდე“-ს. ტელეფონები თავიდან შემოდიან ახალი კოდით. ქვიზები, მედია, წესები, გუნდების სახელები და PIN რჩება.</p><button class="btn danger" data-act="reset" id="freshBtn2">${L('sparkles')}ახალი საღამოს დაწყება</button></div></div></div>`;
 }
 
 // ───────── ქულები და ფინალი ─────────
@@ -333,12 +333,7 @@ const A = {
     db.ref('live').set({ mode: m });
   },
   sfx(kind) { db.ref('live/sfx').set({ kind, n: Date.now() }); },
-  async reset() {
-    if (!(await ask('წაიშლება ყველა მოთამაშე, ქულა და პასუხი. კითხვები და პარამეტრები დარჩება.', 'დიახ, განულება'))) return;
-    const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, tstreak: null, bvotes: null, pvotes: null, 'session/games': null, live: { mode: 'lobby' }, 'session/code': String(Math.floor(1000 + Math.random() * 9000)), 'session/nextTeam': 0 };
-    for (let i = 0; i < 4; i++) u['teams/' + i + '/score'] = 0;
-    db.ref().update(u); toast('თამაში განულდა');
-  },
+  async reset() { if (await freshEvening()) { S.sec = 'players'; lastView = ''; render(true); toast('ახალი საღამო დაიწყო — ახალი კოდი: ' + ((S.session || {}).code || '')); } },
   // მოთამაშეების ხმის მიცემა
   async pvstart() {
     const title = String(($('#pvtitle') || {}).value || S.pvtitle || '').trim() || DEFAULT_POLLS.mvp.title, all = pollsAll();
