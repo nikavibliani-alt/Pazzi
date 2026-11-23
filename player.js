@@ -64,6 +64,7 @@ db.ref('players').on('value', s => {
   render();
 });
 db.ref('teams').on('value', s => { S.teams = s.val() || {}; render(); });
+db.ref('battles').on('value', s => { S.battles = s.val() || null; render(); });
 db.ref('avatars').on('value', s => { S.avatars = s.val() || {}; render(); });          // ვის რომელი პერსონაჟი უჭირავს
 db.ref('library/sounds').on('value', s => { SFX.libMeta = s.val() || {}; });
 db.ref('results').on('value', s => { S.results = s.val() || {}; checkStreak(); });
@@ -204,11 +205,12 @@ function render() {
   if (tOn && mode === 'g1' && t != null) sub = `<small>${ttag(t, teamName(S.teams, t))}</small>`; // გუნდები მხოლოდ თამაშ 1-ში
   const teamPts = mode === 'g1' && tOn;
   if (teamPts) score = teamScore(S.teams, t);
-  const sc = (mode === 'g1' || mode === 'g2') ? `<div class="sc" ${teamPts ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${fmtPts(score)}<small>ქულა</small></div>` : '';
+  const sc = (mode === 'g2' || (mode === 'g1' && t != null && t < teamCount())) ? `<div class="sc" ${teamPts ? `style="background:${TEAM_COLORS[t]};color:${TEAM_TEXT[t]}"` : ''}>${fmtPts(score)}<small>ქულა</small></div>` : '';
   const top = `<div class="top" style="--t:${TEAM_HUES[t]}"><div class="pic">${av(m.avatar)}</div><div class="nm">${esc(m.name)}${sub}</div>${sc}</div>`;
   let body = '';
   if (mode === 'lobby') body = msg(m.avatar, pickText('wait_start', S.pid + 'lobby'));
   else if (mode === 'break') body = msg(m.avatar, 'შესვენებაა!', 'დაისვენე და წაიხემსე.');
+  else if (mode === 'intro') body = `<div class="g1watch introphone"><div class="title">${esc(introOf(l.key, S.battles).title)}</div><div class="sub">მოემზადე!</div></div>`;
   else if (mode === 'g1') body = g1Html(m, l);
   else if (mode === 'g2') body = g2Html(m, l);
   else if (mode === 'final') body = msg(m.avatar, 'ფინალი! შეხედე ეკრანს.');
@@ -281,20 +283,10 @@ function vote(pid) {
   S.bvotes = Object.assign({}, S.bvotes, { [S.pid]: pid }); render();
   db.ref('bvotes/' + l.round + '/' + S.pid).set(pid).then(() => battleAutoLock(S.players, l.perf, S.bvotes));
 }
-function g1Html(m, l) {
-  if (teamsOn() && (m.team == null || m.team >= teamCount())) return msg(m.avatar, 'დაელოდე გუნდში გადანაწილებას', 'წამყვანი მალე გაგანაწილებთ გუნდებში.');
-  if (!l.qid) return (teamsOn() ? `<div class="teamhello" style="--t:${TEAM_HUES[m.team]}">შენი გუნდი<b>${esc(teamName(S.teams, m.team))}</b></div>` : '') + msg(m.avatar, pickText('wait_start', S.pid + 'g1'));
-  const b = l.buzz, seed = l.qid + S.pid, key = buzzKeyOf(l, m, S.pid), solo = key[0] === 'p';
-  if (l.phase === 'open') {
-    if (buzzBlocked(l, key)) return `<button class="buzz" disabled>${esc(pickText('wrong', seed))}</button><div class="msg"><small>${solo ? 'შენ უკვე სცადე' : 'თქვენმა გუნდმა უკვე სცადა'}. ახლა სხვების ჯერია.</small></div>`;
-    return `<button class="buzz" id="buzz">დააჭირე!</button>`;
-  }
-  if (l.phase === 'missed') return msg(m.avatar, pickText('wrong', seed), 'ამ კითხვაზე ღილაკი დაიკეტა. ველოდებით შემდეგს.');
-  if (b && b.pid === S.pid) {
-    return `<button class="buzz won" disabled>${esc(pickText('buzz_first', seed))}</button>` + (l.phase === 'right' ? msg(m.avatar, pickText('correct', seed)) : `<div class="msg"><small>თქვი პასუხი ხმამაღლა!</small></div>`);
-  }
-  if (b) return msg(b.avatar, `${b.name} დააჭირა პირველმა`, l.phase === 'right' ? pickText('correct', seed) : pickText('too_slow', seed));
-  return msg(m.avatar, '…');
+// ბლიცი: ტელეფონი არ გამოიყენება — წამყვანი ნიშნავს გუნდებს; აქ მხოლოდ გუნდი და ქულა
+function g1Html(m) {
+  const t = m.team, has = t != null && t < teamCount();
+  return `<div class="g1watch"><div class="title">ბლიცი</div><div class="sub">უყურე ტელევიზორს</div>${has ? `<div class="teamhello" style="--t:${TEAM_HUES[t]}">შენი გუნდი<b>${esc(teamName(S.teams, t))}</b><span class="tsc">${fmtPts(teamScore(S.teams, t))} ქულა</span></div>` : ''}</div>`;
 }
 
 function g2Html(m, l) {

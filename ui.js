@@ -77,7 +77,7 @@ async function freshEvening() {
   const [s, t] = await Promise.all([db.ref('session').once('value'), db.ref('teams').once('value')]);
   const oldCode = String((s.val() || {}).code || ''); let code;
   do code = String(Math.floor(1000 + Math.random() * 9000)); while (code === oldCode);
-  const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, tstreak: null, bvotes: null, pvotes: null, yt: null,
+  const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, tstreak: null, bvotes: null, pvotes: null, yt: null, g1log: null, tvstate: null, ctl: null,
     live: { mode: 'lobby' }, session: { code, sid: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nextTeam: 0, started: Date.now() } };
   Object.keys(t.val() || {}).forEach(i => { u['teams/' + i + '/score'] = 0; });
   await db.ref().update(u);

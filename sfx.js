@@ -1,6 +1,9 @@
 // ფაციფუცობანა — ხმის მოტორი (ტვ და ადმინის მოსასმენი ღილაკები)
 const SFX = {
-  ctx: null, buffers: {},
+  ctx: null, buffers: {}, out: null,
+  // ყველა ხმა ერთ „მთავარ“ არხში — „ყველა ხმის გაჩერება“ მას წყვეტს და ახალს ქმნის
+  dest() { if (!this.out) { this.out = this.ctx.createGain(); this.out.connect(this.ctx.destination); } return this.out; },
+  stopAll() { if (this.out) { try { this.out.disconnect(); } catch (e) {} this.out = null; } },
   enable() {
     if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.ctx.resume();
@@ -11,7 +14,7 @@ const SFX = {
     o.type = type; o.frequency.setValueAtTime(f, t0);
     if (endF) o.frequency.linearRampToValueAtTime(endF, t0 + dur);
     g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
-    o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + .05);
+    o.connect(g).connect(this.dest()); o.start(t0); o.stop(t0 + dur + .05);
   },
   bone(f, start, dur, endF, vib) {
     const c = this.ctx; if (!c) return;
@@ -20,7 +23,7 @@ const SFX = {
     lp.type = 'lowpass'; lp.frequency.setValueAtTime(500, t0); lp.frequency.linearRampToValueAtTime(1600, t0 + dur * .3); lp.frequency.linearRampToValueAtTime(600, t0 + dur);
     g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(.35, t0 + .06); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
     if (vib) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 6; lg.gain.value = 5; l.connect(lg).connect(o.frequency); l.start(t0); l.stop(t0 + dur + .05); }
-    o.connect(lp).connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + .05);
+    o.connect(lp).connect(g).connect(this.dest()); o.start(t0); o.stop(t0 + dur + .05);
   },
   // ჩაშენებული ხმები (ნაგულისხმევი)
   defaults: {
@@ -34,6 +37,7 @@ const SFX = {
     // დრამის დარტყმები (~2.6 წმ), ბოლოს ქინძისთავი — მხოლოდ თუ Mixkit-ის ხმა არ არის
     drumroll() { for (let i = 0; i < 40; i++) { const t = i * .065, v = .05 + .25 * (i / 40); SFX.noise(t, .06, v, 900 + i * 30); SFX.tone(110 + (i % 2) * 6, t, .05, 'triangle', v * .6); } },
     podium() { SFX.tone(392, 0, .2, 'sawtooth', .1); SFX.tone(523, .22, 1, 'sawtooth', .1); SFX.tone(659, .22, 1, 'sawtooth', .08); SFX.tone(784, .22, 1, 'sawtooth', .08); },
+    intro() { [[392, 0], [523, .16], [659, .32], [784, .48]].forEach(([f, s]) => SFX.tone(f, s, .32, 'triangle', .2)); SFX.tone(1047, .66, .9, 'sine', .18); SFX.tone(784, .66, .9, 'triangle', .08); },
     loser() { SFX.tone(1200, 0, .6, 'sine', .25, 200); SFX.bone(110, .65, .9, 80, true); }
   },
   libMeta: {},
@@ -43,7 +47,7 @@ const SFX = {
     for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
     const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t0 = c.currentTime + start;
     f.type = 'bandpass'; f.frequency.value = freq || 1200; f.Q.value = .8; g.gain.value = vol;
-    s.buffer = b; s.connect(f).connect(g).connect(c.destination); s.start(t0);
+    s.buffer = b; s.connect(f).connect(g).connect(this.dest()); s.start(t0);
   },
   // დარტყმა / ქინძისთავი სახელის გამოჩენისას
   crash() { const c = this.ctx; if (!c) return; this.noise(0, 1.6, .35, 6000); this.noise(0, .25, .5, 300); this.tone(60, 0, .4, 'sine', .4, 40); },
@@ -53,7 +57,7 @@ const SFX = {
     const m = ((CFG && CFG.sounds) || {})[event] || 'default';
     if (m === 'none') return { stop() {} };
     const b = m !== 'default' && this.buffers[m];
-    if (b) { const s = this.ctx.createBufferSource(), g = this.ctx.createGain(); s.buffer = b; s.connect(g).connect(this.ctx.destination); s.start(); return { stop: () => { try { g.gain.setTargetAtTime(0, this.ctx.currentTime, .08); s.stop(this.ctx.currentTime + .4); } catch (e) {} } }; }
+    if (b) { const s = this.ctx.createBufferSource(), g = this.ctx.createGain(); s.buffer = b; s.connect(g).connect(this.dest()); s.start(); return { stop: () => { try { g.gain.setTargetAtTime(0, this.ctx.currentTime, .08); s.stop(this.ctx.currentTime + .4); } catch (e) {} } }; }
     this.defaults[event] && this.defaults[event](); return { stop() {} };
   },
   idOf(v) { if (!v || v === 'default' || v === 'none') return v; if (this.libMeta[v]) return v; const e = Object.entries(this.libMeta).find(([, m]) => m && m.name === v); return e ? e[0] : null; },
@@ -69,7 +73,7 @@ const SFX = {
   preload(sounds) { Object.values(sounds || {}).forEach(v => { if (v && v !== 'default' && v !== 'none') this.loadLib(v); }); },
   playBuffer(id) {
     const b = this.buffers[id]; if (!b || !this.ctx) return false;
-    const s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start(); return true;
+    const s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.dest()); s.start(); return true;
   },
   // მოვლენის ხმა კონფიგურაციის მიხედვით
   // over = კითხვის საკუთარი ხმები ({ right: libId, ... }); თუ არ არის — თამაშის ნაგულისხმევი

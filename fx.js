@@ -2,6 +2,8 @@
 const FX_LIST = [['fireworks', 'ფეიერვერკი'], ['confetti', 'კონფეტის ფოიერვერკი'], ['shake', 'ეკრანის რყევა'], ['tomatoes', 'პომიდვრების წვიმა'], ['crack', 'ეკრანის გაბზარვა'], ['stamp', 'დიდი წითელი შტამპი'], ['zoomscore', 'ქულის ნელა გადიდება'], ['money', 'ფულის წვიმა'], ['trophy', 'თასის ჩამოვარდნა']];
 const FX_COLORS = ['#C2185B', '#F9C9D8', '#FFE2A8', '#CDEBDD', '#E3D7FA', '#FBD0BE', '#ffffff', '#FFD15C'];
 
+// ყველა ეფექტის/ვიდეოს მოხსნა („ყველა ხმის გაჩერება“)
+function fxStopAll() { document.querySelectorAll('.fxlayer').forEach(L => { L.querySelectorAll('video, audio').forEach(v => { try { v.pause(); } catch (e) {} }); L.remove(); }); }
 function fxLayer(cls) { const d = document.createElement('div'); d.className = 'fxlayer ' + (cls || ''); d.setAttribute('aria-hidden', 'true'); document.body.appendChild(d); return d; }
 function fxEnd(layer, ms) { return new Promise(res => setTimeout(() => { layer.classList.add('fxgone'); setTimeout(() => { layer.remove(); res(); }, 380); }, ms)); }
 const rnd = (a, b) => a + Math.random() * (b - a);

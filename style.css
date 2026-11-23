@@ -847,3 +847,62 @@ body.host.touch .teamrow .btn.icon { --h: 52px; }
 .btn.fresh-go.armed { background: var(--bad); color: #fff; border-color: var(--bad); }
 .topbar2 .grow { flex: 1; }
 .topbar2 .fresh-top { color: var(--bad); }
+/* მუსიკის მართვა */
+.musicbar { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 2px var(--pink-l); }
+.musicbar.playing { box-shadow: inset 0 0 0 2px var(--pink); }
+.musicbar .mstat { display: flex; align-items: center; gap: 8px; font-weight: 700; flex-wrap: wrap; }
+.musicbar .mbtns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.musicbar .mbtns .btn { padding: 0 8px; }
+.btn.stopall { background: var(--bad); color: #fff; border-color: var(--bad); }
+.btn.stopall .lucide { color: #fff; }
+.chip.nowplay.playing { background: var(--pink); color: #fff; }
+.chip.nowplay.playing .lucide { color: #fff; }
+body.host.touch .musicbar .mbtns .btn { min-height: 56px; font-size: 16px; }
+@media (max-width: 700px) { .musicbar .mbtns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.phone .g1watch { text-align: center; padding: 18px 8px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.phone .g1watch .title { font-size: 34px; font-weight: 800; }
+.phone .g1watch .sub { font-size: 20px; color: var(--muted); font-weight: 700; }
+.phone .g1watch .tsc { display: block; font-size: 22px; font-weight: 800; margin-top: 6px; }
+/* ბლიცი: გუნდების ბარათები — სწორი / არასწორი */
+.tcards { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 10px; margin: 6px 0 10px; }
+.tcard { background: var(--t); border-radius: 18px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tchead { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 4px 2px; }
+.tchead b { font-size: 19px; font-weight: 800; overflow-wrap: anywhere; }
+.tcsc { font-size: 26px; font-weight: 800; } .tcsc small { font-size: 13px; font-weight: 700; }
+.app .btn.tc-ok, .app .btn.tc-no { --h: 72px; min-height: 72px; font-size: 18px; padding: 0 6px; border: 0; color: #fff; flex-wrap: wrap; line-height: 1.15; }
+.app .btn.tc-ok { background: var(--ok); } .app .btn.tc-no { background: var(--bad); }
+.app .btn.tc-ok .lucide, .app .btn.tc-no .lucide { color: #fff; }
+.app .btn.flash { animation: tcflash .9s ease-out; }
+@keyframes tcflash { 0% { transform: scale(.94); box-shadow: 0 0 0 0 rgba(255, 255, 255, .95); } 40% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(255, 255, 255, .7); } 100% { transform: scale(1); box-shadow: 0 0 0 18px rgba(255, 255, 255, 0); } }
+.undorow { display: flex; justify-content: flex-end; margin: 4px 0 6px; }
+.tboard.tbclosed h3 { margin: 0; cursor: pointer; }
+body.host.touch .tcards { grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); }
+body.host.touch .tchead b { font-size: 20px; }
+/* ტვ: „[გუნდი] – სწორია! +1“ 2 წამით */
+.tv .markcard { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 1.2); background: var(--t); text-align: center; padding: 0 calc(var(--u) * 4); }
+.tv .markcard .mk-team { font-size: calc(var(--u) * 7); font-weight: 800; line-height: 1.1; }
+.tv .markcard .mk-what { font-size: calc(var(--u) * 5.2); font-weight: 800; }
+.tv .markcard .mk-pts { font-size: calc(var(--u) * 6); font-weight: 800; }
+.tv .markcard.wrong .mk-what, .tv .markcard.wrong .mk-pts { color: var(--bad); }
+.tv .markcard.right .mk-what, .tv .markcard.right .mk-pts { color: #136B3D; }
+/* შესავალი ეკრანები */
+.tv .introscr { justify-content: center; gap: calc(var(--u) * 1.4); }
+.tv .introscr .introtitle { font-size: calc(var(--u) * 9); }
+.tv .introline { font-size: calc(var(--u) * 2.8); font-weight: 700; color: var(--muted); text-align: center; max-width: 80%; }
+.tv .introteams { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1.2); justify-content: center; margin-top: calc(var(--u) * 2); }
+.tv .introteams .ttag { font-size: calc(var(--u) * 2.6); padding: calc(var(--u) * .7) calc(var(--u) * 2); }
+/* წამყვანი: ტვ-ს გადამრთველი ზედა ზოლში */
+.tvswitch { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; align-items: center; }
+.tvswitch .lbl { font-size: 13px; font-weight: 700; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+.tvswitch .btn { --h: 40px; font-size: 14px; padding: 0 12px; }
+.tvswitch .btn.on { background: var(--pink); color: #fff; border-color: var(--pink); }
+.tvswitch .btn.on .lucide { color: #fff; }
+body.host.touch .tvswitch .btn { min-height: 48px; }
+.introrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.introrow .btn.on { background: var(--pink); color: #fff; border-color: var(--pink); }
+.introrow .btn.on .lucide { color: #fff; }
+body.host.app .btn.tc-ok, body.host.app .btn.tc-no { white-space: normal; flex-direction: column; gap: 2px; font-size: 17px; text-align: center; overflow-wrap: anywhere; height: auto; min-height: 76px; padding: 6px 4px; }
+.app .btn.tc-ok .lucide, .app .btn.tc-no .lucide { width: 22px; height: 22px; }
+.tv .introscr { align-items: center; text-align: center; }
+.tv .introline { margin-left: auto; margin-right: auto; width: 100%; max-width: 85%; }
+.tv .introteams { width: 100%; }

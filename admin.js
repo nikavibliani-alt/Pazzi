@@ -174,7 +174,7 @@ function drawEditor() {
 }
 // კითხვის საკუთარი წესები („თამაშის წესი“ = არაფერი არ ინახება)
 function qRuleKeys(c) {
-  if (c.game === 1) return ['pts', 'penalty', 'afterWrong'].concat((c.rules || {}).afterWrong === 'all' || (rulesG(1).afterWrong === 'all' && !(c.rules || {}).afterWrong) ? ['sameTeamTwice'] : []);
+  if (c.game === 1) return ['pts', 'penalty']; // ბლიცი: წამყვანი ნიშნავს გუნდს, ღილაკი აღარ არის
   const k = ['ptsFirst', 'ptsOther', 'onlyFirst', 'penalty'];
   if (c.type === 'multi') k.push('multi');
   if (c.type === 'text') k.push('typed');
@@ -518,14 +518,12 @@ function renderRules() {
     ${line('ბოლო ადგილის გამოცხადება', sel('final.loser', f.loser !== false, [[true, 'კი'], [false, 'არა']]))}
   </div></div>
   <div><div class="panel"><h3>${L('zap')}თამაში 1 · ბლიცი</h3>
-    ${line('როგორ თამაშობენ', sel('g1.teamsOn', g1.teamsOn !== false, [[true, 'გუნდებად'], [false, 'ყველა თავისთვის']]))}
-    ${g1.teamsOn !== false ? line('გუნდების რაოდენობა', sel('g1.teamCount', n, [[2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']])) : ''}
-    ${g1.teamsOn !== false ? `<div style="margin:4px 0 12px 248px">${Array.from({ length: n }, (_, i) => `<div class="row" style="margin:6px 0"><span style="width:22px;height:22px;border-radius:50%;background:${TEAM_COLORS[i]};box-shadow:inset 0 0 0 1.5px var(--pink-l);flex:none"></span><input type="text" class="grow" data-tname="${i}" value="${esc(teamName(M.teams, i))}" maxlength="24" aria-label="გუნდის სახელი"></div>`).join('')}</div>` : ''}
-    ${line(RULE_NAMES.pts, c('g1', 'pts', g1.pts))}
-    ${line(RULE_NAMES.penalty, c('g1', 'penalty', g1.penalty))}
-    ${line(RULE_NAMES.afterWrong, c('g1', 'afterWrong', g1.afterWrong))}
+    <p class="hint" style="margin:0 0 12px">ბლიცში ტელეფონები არ გამოიყენება: წამყვანი ყოველ კითხვაზე ნიშნავს, რომელმა გუნდმა უპასუხა სწორად ან არასწორად.</p>
+    ${true ? line('გუნდების რაოდენობა', sel('g1.teamCount', n, [[2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']])) : ''}
+    ${true ? `<div style="margin:4px 0 12px 248px">${Array.from({ length: n }, (_, i) => `<div class="row" style="margin:6px 0"><span style="width:22px;height:22px;border-radius:50%;background:${TEAM_COLORS[i]};box-shadow:inset 0 0 0 1.5px var(--pink-l);flex:none"></span><input type="text" class="grow" data-tname="${i}" value="${esc(teamName(M.teams, i))}" maxlength="24" aria-label="გუნდის სახელი"></div>`).join('')}</div>` : ''}
+    ${line('სწორზე ემატება (+)', c('g1', 'pts', g1.pts), 'ნაგულისხმევად 1. კითხვას შეგიძლია სხვა მისცე რედაქტორში.')}
+    ${line('არასწორზე აკლდება (−)', c('g1', 'penalty', g1.penalty), 'ნაგულისხმევად 1. 0 = არაფერი აკლდება. ქულა შეიძლება მინუსში ჩავიდეს.')}
     ${line('როდის გამოჩნდეს სურათი / ვიდეო ტვ-ზე', sel('g1.media', g1WhenNorm(g1.media), G1_WHEN), 'ტვ-ზე მარტო სურათი/ვიდეო, ტექსტის გარეშე. მუსიკა — მხოლოდ ღილაკით. თითო კითხვას შეგიძლია სხვა მისცე რედაქტორში.')}
-    ${g1.afterWrong === 'all' ? line(RULE_NAMES.sameTeamTwice, c('g1', 'sameTeamTwice', g1.sameTeamTwice), '„არა“ — ვინც შეცდა, ჯერ სხვამ უნდა სცადოს.') : ''}
   </div><p class="hint">ცვლილებები მაშინვე ინახება. წამყვანის გვერდზე თითო კითხვასთან ჩანს მოქმედი წესები.</p></div></div>`);
 }
 function saveRule(path, raw) {
@@ -688,6 +686,7 @@ function renderSettings() {
   <div class="panel"><h3>${L('check')}„ხელს ვაწერ“ შესვლისას</h3><textarea id="s_agree" rows="3">${esc(agreeText())}</textarea><p class="hint">ტელეფონზე ჩანს შესვლისას. ვიდრე არ მონიშნავენ, შესვლის ღილაკი არ ირთვება.</p></div>
   <div class="panel"><h3>${L('sparkles')}ახალი საღამოს დაწყება</h3><p class="hint">წაშლის ყველა მოთამაშეს, ქულას, გუნდებში განაწილებას, პასუხებს, ბრძოლების და ხმის მიცემის შედეგებს და თამაშების პროგრესს. ტელეფონები თავიდან შემოდიან ახალი კოდით. ქვიზები, მედია, წესები, გუნდების სახელები და PIN რჩება.</p><button class="btn danger" data-a="fresh" id="freshBtn">${L('sparkles')}ახალი საღამოს დაწყება</button></div>
   <div class="panel"><h3>${L('lock')}წამყვანის და ადმინის PIN</h3><div class="row"><input type="text" id="s_pin" class="grow" value="${esc(CFG.pin || DEFAULT_PIN)}" maxlength="12"><button class="btn primary" data-a="savepin">${L('check')}შენახვა</button></div><p class="hint">PIN მსუბუქი დაცვაა, რეპოზიტორია საჯაროა.</p></div></div>
+  <div class="panel"><h3>${L('monitor-play')}ტვ-ზე შესავლები („ტვ-ზე ჩვენება“)</h3><p class="hint">თამაშის სახელი და 1–2 ხაზი წესები, რაც ტვ-ზე ჩანს წამყვანის „ტვ-ზე ჩვენებაზე“. ცარიელი = ნაგულისხმევი.</p>${introList(M.battles || null).map(x => { const it = introOf(x.key, M.battles || null), own = ((CFG.intros || {})[introCfgKey(x.key)]) || {}; return `<label class="f">${esc(x.short)}</label><input type="text" data-intro="${esc(introCfgKey(x.key))}|title" value="${esc(own.title || '')}" placeholder="${esc(it.title)}" maxlength="40"><textarea data-intro="${esc(introCfgKey(x.key))}|text" rows="2" placeholder="${esc(it.text)}" style="margin-top:6px">${esc(own.text || '')}</textarea>`; }).join('')}</div>
   <div class="panel"><h3>${L('message-circle')}სასაცილო ტექსტები</h3><p class="hint">თითო ხაზი = ერთი ვარიანტი, თამაში შემთხვევით ირჩევს. ბოლო ადგილის ტექსტში {name} ჩაანაცვლებს სახელს.</p>${TEXT_KEYS.map(([k, label]) => `<label class="f">${label}</label><textarea data-text="${k}" rows="${Math.min(7, textList(k).length + 1)}">${esc(textList(k).join('\n'))}</textarea><button class="btn quiet" data-a="resettext" data-id="${k}" style="margin-top:6px">${L('rotate-ccw')}ნაგულისხმევზე დაბრუნება</button>`).join('')}</div></div>`);
 }
 
@@ -719,6 +718,7 @@ document.addEventListener('input', e => {
   else if (t.dataset.bf && (t.type === 'text' || t.type === 'number')) { const k = t.dataset.bf, v = t.value; if (!/media\.url$/.test(k)) queueSave('bf:' + k, () => setBattleField(k, v), 500); }
   else if (t.id === 's_name') queueSave('gname', () => db.ref('config/gameName').set(t.value.trim() || null));
   else if (t.dataset.tname !== undefined) queueSave('tn' + t.dataset.tname, () => db.ref('teams/' + t.dataset.tname + '/name').set(t.value));
+  else if (t.dataset.intro) { const [k, f] = t.dataset.intro.split('|'); queueSave('in' + t.dataset.intro, () => db.ref('config/intros/' + k + '/' + f).set(t.value.trim() ? t.value : null)); }
   else if (t.dataset.text) queueSave('tx' + t.dataset.text, () => {
     const lines = t.value.split('\n').map(s => s.trim()).filter(Boolean);
     return db.ref('config/texts/' + t.dataset.text).set(lines.length ? lines : null);

@@ -147,8 +147,35 @@ const DEFAULT_PIN = '5813';
 // ხმის მოვლენები (ადმინში თითოეულზე ირჩევ ხმას)
 const SOUND_EVENTS = [
   ['right', 'სწორი პასუხი'], ['wrong', 'არასწორი პასუხი'], ['partly', 'ნაწილობრივ სწორი'], ['buzz', 'ვიღაცამ დააჭირა ღილაკს'],
-  ['reveal', 'კითხვის გახსნა'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['drumroll', 'ფინალის დრამი (თითო ადგილის წინ)'], ['loser', 'ბოლო ადგილის გამოცხადება']
+  ['reveal', 'კითხვის გახსნა'], ['scoreboard', 'ქულების ცხრილი'], ['podium', 'პოდიუმი'], ['drumroll', 'ფინალის დრამი (თითო ადგილის წინ)'], ['loser', 'ბოლო ადგილის გამოცხადება'], ['intro', 'თამაშის შესავალი ტვ-ზე']
 ];
+// ტვ-ზე შესავალი ეკრანები („ტვ-ზე ჩვენება“): სახელი + 1–2 ხაზი წესები (ადმინში რედაქტირდება: config/intros)
+const INTRO_DEFAULTS = {
+  g1: { title: 'ბლიცი', text: 'გუნდები პასუხობენ ხმამაღლა.\nსწორზე +1, არასწორზე −1.' },
+  g2: { title: 'ფაცი თუ ფუცი', text: 'ყველა თავისთვის, ტელეფონით.\nრაც უფრო სწრაფად სწორად, მით მეტი ქულა.' },
+  battle: { title: '', text: 'სცენაზე გამოდიან მონაწილეები.\nგამარჯვებულს თქვენ ირჩევთ ტელეფონით.' },
+  pvote: { title: 'ხმის მიცემა — MVP', text: 'ხმა მიეცი ტელეფონით.\nსაკუთარ თავს ვერ მისცემ.' },
+  break: { title: 'შესვენება', text: 'სასმელი, საჭმელი, ჭორაობა!' },
+  final: { title: 'ფინალი', text: 'ვინ არის საღამოს ჩემპიონი?\nმესამე, მეორე, პირველი…' }
+};
+const introCfgKey = k => String(k).replace(/[^a-zA-Z0-9_-]/g, '_');
+function introList(battles) {
+  const b = battles || DEFAULT_BATTLES, ids = Object.keys(b).sort((x, y) => (b[x].created || 0) - (b[y].created || 0));
+  return [{ key: 'g1', short: 'ბლიცი', icon: 'zap' }, { key: 'g2', short: 'ფაცი თუ ფუცი', icon: 'circle-help' }]
+    .concat(ids.map(id => ({ key: 'b:' + id, short: b[id].name || 'ბრძოლა', icon: 'swords' })))
+    .concat([{ key: 'pvote', short: 'MVP', icon: 'vote' }, { key: 'break', short: 'შესვენება', icon: 'coffee' }, { key: 'final', short: 'ფინალი', icon: 'trophy' }]);
+}
+function introOf(key, battles) {
+  const isB = String(key).startsWith('b:'), base = INTRO_DEFAULTS[isB ? 'battle' : key] || { title: '', text: '' };
+  const own = ((CFG && CFG.intros) || {})[introCfgKey(key)] || {};
+  const bname = isB ? (((battles || DEFAULT_BATTLES)[key.slice(2)] || {}).name || 'ბრძოლა') : '';
+  return { title: String(own.title || '').trim() || base.title || bname, text: own.text != null && String(own.text).trim() ? String(own.text) : base.text };
+}
+// რომელი ეკრანია ახლა ტვ-ზე (გადამრთველის მოსანიშნად)
+function liveScreenKey(l) {
+  l = l || {}; const m = l.mode || 'lobby';
+  if (m === 'intro') return l.key; if (m === 'battle') return 'b:' + l.bid; return m;
+}
 
 // სასაცილო ტექსტები (ადმინში რედაქტირდება). {name} = მოთამაშის სახელი
 const TEXT_KEYS = [
@@ -163,7 +190,7 @@ const DEFAULT_TEXTS = {
   too_slow: ['ამჯერად სხვა იყო უფრო სწრაფი.', 'ნელი აღმოჩნდი, მაგრამ ლამაზი.', 'ლოკოკინამაც გაგასწრო!', 'ეს კითხვა გამოგეპარა. ბოლო არ არის.', 'ერთი წამით დაგაგვიანდა... იქნებ ორით.'],
   correct: ['სწორია! გენიოსი ხარ... ან გაგიმართლა.', 'ვაიმე, ეს იცოდი?!', 'ბრავო! ტვინი დღეს ჩართულია.', 'სწორია! ახლა ნუ გაამპარტავნდები.', 'ზუსტად! აპლოდისმენტები შენს ტვინს.'],
   wrong: ['ეჰ, არა. მაგრამ თავდაჯერებულად უპასუხე!', 'არასწორია, მაგრამ ლამაზად ცდები.', 'ოხ... გუგლი ახლა ვერ გიშველის.', 'არა-არა-არა! მაგრამ ამას არავინ დაიმახსოვრებს. ალბათ.', 'ამჯერად არა! მომდევნოში გაგიმართლებს.'],
-  pvote_win: ['{name} — საღამოს ვარსკვლავი! ხალხმა აგირჩია!', 'გვირგვინი შენია, {name}! ახლა სიტყვით გამოდი.', '{name}! ხმები დაითვალა, ეჭვი აღარ არის.', 'ტაში {name}-ს! ასეთი პოპულარობა არჩევნებშიც არ ხდება.', '{name} — ჩემპიონი! დანარჩენებს — მომავალ წელს.'],
+  pvote_win: ['{name}, ხმები დაითვალა. შენ ხარ დამსახურებული თ.ხ.ა !'],
   battle_win: ['{name} — ბრძოლის მეფე/დედოფალი! დარბაზი შენ გეკუთვნის!', 'გილოცავ, {name}! ხალხმა თქვა თავისი!', '{name} იმარჯვებს! დანარჩენებს — მომავალ წელს.', 'ტაში, {name}! ეს გამარჯვება ისტორიაში შევა... ამ ოთახის ისტორიაში მაინც.', '{name} — ხმების ჩემპიონი! ახლა ავტოგრაფები.'],
   board_title: ['ვინ დგას სათავეში?', 'ქულების ცხრილი: გული დაიჭირეთ!', 'ცხრილი არ იტყუება!', 'ვინ ჭკვიანობს და ვინ მხოლოდ ჩანს?'],
   podium_title: ['ჩემპიონების პოდიუმი!', 'ვინ ავიდა მწვერვალზე?', 'და გამარჯვებულები არიან...', 'დრამის ბგერა, თუ შეიძლება!'],
@@ -211,13 +238,13 @@ function ranking(players, awarded) {
 
 // ───────── წესები (ადმინში იცვლება; კითხვას შეუძლია საკუთარი) ─────────
 const DEFAULT_RULES = {
-  1: { pts: 1, penalty: 0, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4, media: 'manual' },
+  1: { pts: 1, penalty: 1, afterWrong: 'others', sameTeamTwice: false, teamsOn: true, teamCount: 4, media: 'manual' },
   2: { ptsFirst: 1.5, ptsOther: 1, onlyFirst: false, penalty: 0, multi: 'partial', typed: 'manual', board: true, media: 'img' }
 };
 // სურათი / ვიდეო / მუსიკა ტვ-ზე კითხვის დაწყებისას
 const MEDIA_MODES = [['manual', 'მხოლოდ როცა დავაჭერ'], ['img', 'სურათი თავისით, ვიდეო და მუსიკა — დაჭერით'], ['auto', 'ყველაფერი თავისით']];
 // თამაში 1: როდის გამოჩნდეს სურათი/ვიდეო ტვ-ზე (ტექსტის გარეშე, მთელ ეკრანზე)
-const G1_WHEN = [['start', 'როცა კითხვა იწყება'], ['buzz', 'როცა ვინმე ღილაკს დააჭერს'], ['right', 'როცა სწორად მოვნიშნავ (გახსნა)'], ['manual', 'მხოლოდ როცა დავაჭერ ღილაკს']];
+const G1_WHEN = [['start', 'როცა კითხვა იწყება'], ['right', 'როცა გუნდს სწორად მოვნიშნავ (გახსნა)'], ['manual', 'მხოლოდ როცა დავაჭერ ღილაკს']]; // ღილაკი ბლიცში აღარ არის
 const g1WhenNorm = v => G1_WHEN.some(x => x[0] === v) ? v : (v === 'img' || v === 'auto') ? 'start' : 'manual';
 function g1WhenOf(q) { return g1WhenNorm((q && q.mediaWhen) || rulesG(1).media); }
 // ავტომატური ჩვენება ლაივზე (ერთხელ კითხვაზე; „დამალვის“ შემდეგ თავიდან აღარ ჩნდება)
@@ -240,7 +267,7 @@ function rulesG(g) { return Object.assign({}, DEFAULT_RULES[g], (CFG.rules || {}
 function rulesFor(q) { if (!q) return {}; const r = Object.assign(rulesG(q.game || 2), q.rules || {}); r.teamsOn = rulesG(1).teamsOn; return r; }
 function finalRules() { return Object.assign({ places: 3, loser: true }, (CFG.rules || {}).final || {}); }
 function teamCount() { const n = Number(rulesG(1).teamCount) || 4; return Math.max(2, Math.min(6, n)); }
-function teamsOn() { return rulesG(1).teamsOn !== false; }
+function teamsOn() { return true; } // ბლიცი ყოველთვის გუნდებად (ტელეფონები ბლიცში არ გამოიყენება)
 // ფინალის ნაბიჯები: ['p2','p1','p0','loser'] — ქვემოდან ზემოთ
 function finalSteps() { const f = finalRules(), n = Math.max(1, Math.min(3, Number(f.places) || 3)), st = []; for (let i = n - 1; i >= 0; i--) st.push('p' + i); if (f.loser !== false) st.push('loser'); return st; }
 // მოკლე აღწერა წამყვანისთვის
@@ -248,9 +275,7 @@ function rulesText(r, q) {
   const t = [];
   if (q && q.game === 1) {
     t.push(`სწორზე +${fmtPts(r.pts)}`);
-    if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
-    t.push(r.afterWrong === 'next' ? 'შეცდომის შემდეგ — შემდეგი კითხვა' : r.afterWrong === 'all' ? (r.sameTeamTwice ? 'შეცდომის შემდეგ — ყველას შეუძლია' : 'შეცდომის შემდეგ — ყველას, ოღონდ ჯერ სხვამ') : 'შეცდომის შემდეგ — სხვა გუნდები');
-    if (!r.teamsOn) t.push('ყველა თავისთვის');
+    t.push(Number(r.penalty) ? `არასწორზე −${fmtPts(r.penalty)}` : 'არასწორზე ქულა არ აკლდება');
   } else {
     t.push(r.onlyFirst ? `ქულა მხოლოდ პირველ სწორს: +${fmtPts(r.ptsFirst)}` : `პირველი სწორი +${fmtPts(r.ptsFirst)}, დანარჩენი სწორები +${fmtPts(r.ptsOther)}`);
     if (Number(r.penalty)) t.push(`შეცდომაზე −${fmtPts(r.penalty)}`);
