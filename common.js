@@ -328,11 +328,14 @@ function watchConnection(cb) { db.ref('.info/connected').on('value', s => cb(!!s
 
 // ───────── PIN-ით დაცული გვერდები (host, admin) ─────────
 function gate(onOk) {
-  const pinP = db.ref('config/pin').once('value').then(s => String(s.val() || DEFAULT_PIN));
-  const enter = () => { $('#gate').hidden = true; $('#app').hidden = false; onOk(); };
+  // ერთი PIN ორივე გვერდისთვის (config/pin); ყოველ ცდაზე ახლიდან ვკითხულობთ ბაზიდან
+  const readPin = () => db.ref('config/pin').once('value').then(s => String(s.val() || DEFAULT_PIN).trim());
+  const pinP = readPin();
+  let entered = false;
+  const enter = () => { if (entered) return; entered = true; $('#gate').hidden = true; $('#app').hidden = false; onOk(); };
   const go = async () => {
-    const pin = await pinP;
-    if ($('#pin').value === pin) { try { sessionStorage.setItem('pz_auth', pin); } catch (e) {} enter(); }
+    const pin = await readPin();
+    if ($('#pin').value.trim() === pin) { try { sessionStorage.setItem('pz_auth', pin); } catch (e) {} enter(); }
     else { $('#pinErr').textContent = 'PIN არასწორია'; $('#pin').value = ''; }
   };
   $('#pinBtn').onclick = go;

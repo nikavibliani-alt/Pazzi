@@ -9,8 +9,21 @@ const MODE_NAMES = { lobby: 'შესვლის ეკრანი', g1: 'თ
 const TYPE_NAMES = { buzz: 'ბლიცი', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
 
 let started = false;
+// iPad: ეკრანი არ ჩაქრეს (keepAwake — common.js); აქ მხოლოდ მდგომარეობის ნიშანი
+function showWake() {
+  const c = document.getElementById('wakeChip'); if (!c) return;
+  const on = (wakeLock && !wakeLock.released) || (noSleep && noSleep.isEnabled);
+  c.hidden = !document.body.classList.contains('touch');
+  const h = on ? `${L('sun')}ეკრანი არ ჩაქრება` : `${L('moon')}შეეხე ეკრანს, რომ არ ჩაქრეს`;
+  if (c.dataset.h !== h) { c.dataset.h = h; c.className = 'chip ' + (on ? 'ok' : 'bad'); c.innerHTML = h; icons(); }
+}
+setInterval(showWake, 2000);
+// შეხებით მართვადი ეკრანი (iPad) — ცალკე განლაგება; ლეპტოპი უცვლელია
+const touchMQ = matchMedia('(hover: none) and (pointer: coarse)');
+const setTouch = () => document.body.classList.toggle('touch', touchMQ.matches);
+setTouch(); if (touchMQ.addEventListener) touchMQ.addEventListener('change', setTouch);
 function start() {
-  if (started) return; started = true;
+  if (started) return; started = true; keepAwake(); setTimeout(showWake, 800);
   ensureBase();
   const on = (path, key) => db.ref(path).on('value', s => { S[key] = key === 'players' ? cleanPlayers(s.val()) : (s.val() || (key === 'session' ? null : {})); S.loaded[key] = true; render(); });
   on('session', 'session'); on('teams', 'teams'); on('players', 'players'); on('tstreak', 'tstreak'); on('yt', 'yt');
@@ -105,9 +118,9 @@ function startBanner(g, qs) {
 }
 function noQuiz(g) { return `<div class="panel"><h3>${L('circle-alert')}ქვიზი არ არის არჩეული</h3><p>გახსენი <a href="admin.html">admin.html</a> და აირჩიე, რომელი ქვიზი გამოიყენება დღეს თამაში ${g}-ისთვის.</p></div>`; }
 function stepRow(step) {
-  return `<div class="steprow"><button class="btn big icon" data-act="jump" data-id="-1" data-tip="წინა კითხვა (←)">${L('chevron-left')}</button>
+  return `<div class="steprow"><button class="btn big icon jumpbtn" data-act="jump" data-id="-1" data-tip="წინა კითხვა (←)">${L('chevron-left')}<span class="tabonly">წინა</span></button>
   <button class="btn big primary" id="stepBtn" data-act="${step.act}" ${step.disabled ? 'disabled' : ''}>${L(step.icon)}${step.label}</button>
-  <button class="btn big icon" data-act="jump" data-id="1" data-tip="შემდეგი კითხვა (→)">${L('chevron-right')}</button></div>`;
+  <button class="btn big icon jumpbtn" data-act="jump" data-id="1" data-tip="შემდეგი კითხვა (→)"><span class="tabonly">შემდეგი</span>${L('chevron-right')}</button></div>`;
 }
 const qIcons = x => `<span class="qic">${x.img ? L('image') : ''}${x.snd ? L('music') : ''}${hasSfx(x) ? L('volume-2') : ''}</span>`;
 // სურათი / ვიდეო / მუსიკა ტვ-ზე მხოლოდ წამყვანის დაჭერით
@@ -140,7 +153,7 @@ function g1Section() {
   } else body = `<p class="muted">აირჩიე კითხვა სიიდან ან დააჭირე „კითხვის ჩვენება“-ს.</p>`;
   const extras = mediaPanel(q);
   return `${endRow('g1')}${startBanner(1, qs)}${teamBoard()}<div class="ctl-grid"><div class="qlist">${rows}</div><div>
-  <div class="panel"><h3>${L('zap')}${q ? `კითხვა ${idx + 1} / ${qs.length}` : 'ახლა'}<span class="grow"></span>${tvNote}</h3>${body}
+  <div class="panel readpanel"><h3>${L('zap')}${q ? `კითხვა ${idx + 1} / ${qs.length}` : 'ახლა'}<span class="grow"></span>${tvNote}</h3>${body}
   ${stepRow(step)}<div class="shortcuts">${kbd('Space')} შემდეგი ნაბიჯი · ${kbd('←')}${kbd('→')} წინა / შემდეგი · ${kbd('R')} სწორია · ${kbd('W')} არასწორია</div>${extras}</div>
   <div class="panel"><h3>${L('users')}${teamsOn() ? 'გუნდების ქულები' : 'ქულები'}</h3>${teamRows()}<div class="row" style="margin-top:12px"><button class="btn" data-act="g1final">${L('trophy')}ბლიცის შედეგების გამოცხადება</button></div></div></div></div>`;
 }
@@ -151,7 +164,7 @@ function teamBoard() {
   const chip = ([id, p]) => `<span class="tchip ${isOnline(p) ? '' : 'off'}" draggable="true" data-act="tpick" data-id="${id}">${pic(p.avatar)}${esc(p.name)}</span>`;
   const none = pl.filter(([, p]) => p.team == null || p.team >= n);
   const cols = Array.from({ length: n }, (_, i) => `<div class="tcol" data-drop="${i}" style="--t:${TEAM_HUES[i]}"><input type="text" class="tname-in" data-tname="${i}" value="${esc(teamName(S.teams, i))}" maxlength="24" aria-label="გუნდის სახელი"><div class="tchips">${pl.filter(([, p]) => p.team === i).map(chip).join('') || '<span class="hint">გადმოათრიე მოთამაშე</span>'}</div><small class="muted">${fmtPts(teamScore(S.teams, i))} ქულა</small></div>`).join('');
-  return `<div class="panel"><h3>${L('users')}გუნდები (${n})<span class="grow"></span><button class="btn icon" data-act="tdel" data-tip="ბოლო გუნდის წაშლა" ${n <= 2 ? 'disabled' : ''}>${L('minus')}</button><button class="btn icon" data-act="tadd" data-tip="გუნდის დამატება" ${n >= 6 ? 'disabled' : ''}>${L('plus')}</button></h3>
+  return `<div class="panel tboard"><h3>${L('users')}გუნდები (${n})<span class="grow"></span><button class="btn icon" data-act="tdel" data-tip="ბოლო გუნდის წაშლა" ${n <= 2 ? 'disabled' : ''}>${L('minus')}</button><button class="btn icon" data-act="tadd" data-tip="გუნდის დამატება" ${n >= 6 ? 'disabled' : ''}>${L('plus')}</button></h3>
   <div class="teamboard" style="--n:${n + 1}">${cols}<div class="tcol nogroup" data-drop=""><b>გუნდის გარეშე (${none.length})</b><div class="tchips">${none.map(chip).join('') || '<span class="hint">ყველა გუნდშია</span>'}</div></div></div>
   <p class="hint" style="margin-top:8px">გადაათრიე მოთამაშე გუნდში, ან დააჭირე და აირჩიე. შეგიძლია ნებისმიერ დროს გადაიყვანო.</p></div>`;
 }
@@ -173,7 +186,8 @@ function g2Section() {
     const opts = arr(q.options), corr = arr(q.correct).map(Number), players = Object.entries(S.players), va = validAnswers();
     const answered = new Set(va.map(([p]) => p));
     const votes = opts.map((_, i) => va.filter(([, a]) => q.type === 'multi' ? arr(a.a).includes(i) : Number(a.a) === i).length);
-    body = `<p class="stage-q">${esc(q.text)}</p>${rulesLine(q)}${stepper}<span class="statusbar" style="margin:0">უპასუხა ${answered.size} / ${players.length}</span>`;
+    const keyAns = q.type === 'poll' ? '<span class="muted">გამოკითხვა — სწორი პასუხი არ აქვს</span>' : q.type === 'text' ? `${L('circle-check-big')}${esc(q.answer || '—')}` : corr.map(i => `<span class="ka">${LETTERS[i] || ''}</span>${esc(opts[i] || '')}`).join(' · ') || '—';
+    body = `<p class="stage-q">${esc(q.text)}</p><div class="readans tabonly"><div class="anspill">${q.type === 'poll' ? '' : 'სწორი: '}${keyAns}</div>${q.type === 'multi' ? '<div class="muted readhint">ერთზე მეტი პასუხია სწორი — უნდა მონიშნონ ზუსტად ესენი</div>' : ''}</div>${rulesLine(q)}${stepper}<span class="statusbar" style="margin:0">უპასუხა ${answered.size} / ${players.length}</span>`;
     if (q.type === 'text') {
       const sorted = va.slice().sort(ansOrder);
       detail = `<div class="anspill">${L('circle-check-big')}სწორი პასუხი: ${esc(q.answer || '—')}</div>` + (sorted.map(([pid, a], i) => { const ok = typedOk(q, a); return `<div class="tans ${ok ? 'ok' : (i === 0 ? 'first' : '')}"><b>${i === 0 ? `${L('star')} პირველი` : (i + 1) + '.'}</b>${pic(S.players[pid].avatar)}<span>${esc(S.players[pid].name)}</span><span class="t"><b>${esc(a.a)}</b></span><button class="btn ${ok ? 'mark-ok' : ''}" data-act="mark" data-id="${pid}">${L(ok ? 'circle-check-big' : 'check')}${ok ? 'სწორია' : 'სწორია?'}</button></div>`; }).join('') || '<p class="muted">პასუხები ჯერ არ მოსულა…</p>');
@@ -190,7 +204,7 @@ function g2Section() {
   }
   const tvNote = l.mode !== 'g2' ? `<span class="chip">${L('monitor')}ტვ-ზე: ${MODE_NAMES[l.mode || 'lobby']}</span>` : '';
   return `${endRow('g2')}${startBanner(2, qs)}<div class="ctl-grid"><div class="qlist">${rows}</div><div>
-  <div class="panel"><h3>${L('circle-help')}${q ? `კითხვა ${idx + 1} / ${qs.length}` : 'ახლა'}<span class="grow"></span>${tvNote}</h3>${body}
+  <div class="panel readpanel"><h3>${L('circle-help')}${q ? `კითხვა ${idx + 1} / ${qs.length}` : 'ახლა'}<span class="grow"></span>${tvNote}</h3>${body}
   ${stepRow(step)}<div class="shortcuts">${kbd('Space')} შემდეგი ნაბიჯი · ${kbd('←')}${kbd('→')} წინა / შემდეგი კითხვა</div>
   ${mediaPanel(q)}</div>
   ${q ? `<div class="panel"><h3>${L('list')}პასუხები</h3>${detail}</div>` : ''}</div></div>`;

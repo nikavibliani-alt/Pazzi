@@ -771,3 +771,69 @@ body.phone { min-height: 100vh; min-height: 100dvh; padding: max(14px, env(safe-
 
 .tv .g1music { display: inline-flex; vertical-align: middle; margin-left: .4em; width: 1em; height: 1em; padding: .18em; border-radius: 50%; background: var(--pink-l, #F9C9D8); color: var(--pink); }
 .tv .g1music svg { width: 100%; height: 100%; }
+
+/* ═════════ წამყვანი iPad-ზე (შეხებით მართვადი ეკრანი); ლეპტოპის განლაგება უცვლელია ═════════ */
+.tabonly { display: none; }
+body.host.touch .tabonly { display: revert; }
+body.host.touch span.tabonly { display: inline; }
+body.host.touch .shell { display: block; }
+body.host.touch .side { position: sticky; top: 0; height: auto; flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 4px; padding: 6px 8px; overflow: visible; }
+body.host.touch .side #sideLogo, body.host.touch .side .sec, body.host.touch #eveBox, body.host.touch .side-foot, body.host.touch .tvbox .now { display: none; }
+body.host.touch .nav { flex: 1 1 0; min-width: 0; min-height: 56px; flex-direction: column; justify-content: center; gap: 3px; padding: 6px 4px; font-size: 12.5px; text-align: center; line-height: 1.15; }
+body.host.touch .nav .lucide { width: 22px; height: 22px; }
+body.host.touch .nav.on::before { left: 18%; right: 18%; top: auto; bottom: -6px; width: auto; height: 4px; border-radius: 4px 4px 0 0; }
+body.host.touch .tvbox { flex: 0 0 auto; flex-direction: row; margin: 0; padding: 4px; gap: 4px; align-items: stretch; }
+body.host.touch .tvbox .btn { width: auto; min-height: 56px; flex-direction: column; gap: 2px; padding: 4px 10px; font-size: 12.5px; }
+body.host.touch .topbar2 { position: static; padding: 8px 20px 4px; gap: 6px; }
+body.host.touch .topbar2 h1 { display: none; }
+body.host.touch .topbar2 .chip { font-size: 13px; padding: 4px 10px; }
+body.host.touch .app .endrow, body.host.touch .endrow { margin: 0 0 8px; }
+body.host.touch .content { padding: 6px 20px 120px; }
+/* ყველა ღილაკი ≥48px, შეყვანა 16px, კლავიატურის მინიშნებები არ ჩანს */
+body.host.touch .btn { min-height: 48px; }
+body.host.touch .btn.icon { min-width: 48px; }
+body.host.touch input, body.host.touch select, body.host.touch textarea { font-size: 16px; min-height: 48px; }
+body.host.touch input[type=checkbox], body.host.touch input[type=radio], body.host.touch input[type=range] { min-height: 0; }
+body.host.touch .steprow + .shortcuts, body.host.touch .shortcuts:has(.kbd), body.host.touch [data-tip]:hover::after { display: none; }
+body.host.touch #view > *, body.host.touch .ctl-grid > *, body.host.touch .qr .qmain { min-width: 0; }
+body.host.touch .qr .qmain b, body.host.touch .qr .qmain small { overflow: hidden; text-overflow: ellipsis; }
+/* კითხვა დიდად ზემოთ: მერე პასუხი, დაჭერის შედეგი, სწორია/არასწორია */
+body.host.touch #view { display: flex; flex-direction: column; }
+body.host.touch #view > .endrow { order: 0; }
+body.host.touch #view > .startbar { order: 1; }
+body.host.touch #view > .ctl-grid { order: 2; display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+body.host.touch #view > .tboard { order: 3; margin-top: 16px; }
+body.host.touch .ctl-grid > .qlist { order: 2; }
+body.host.touch .ctl-grid > div:not(.qlist) { order: 1; }
+body.host.touch .readpanel .stage-q { font-size: 32px; line-height: 1.3; margin-bottom: 16px; }
+body.host.touch .readpanel .anspill { font-size: 22px; padding: 12px 18px; border-radius: 14px; flex-wrap: wrap; }
+body.host.touch .readpanel .anspill .lucide { width: 24px; height: 24px; }
+body.host.touch .readans { margin-bottom: 8px; }
+body.host.touch .readans .ka { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: var(--pink); font-size: 16px; margin-right: 6px; }
+body.host.touch .readhint { font-size: 17px; font-weight: 700; margin: -4px 0 10px; }
+body.host.touch .buzzbox { font-size: 26px; min-height: 92px; }
+body.host.touch .buzzbox .pic { width: 60px; height: 60px; }
+body.host.touch .marks .btn.big { --h: 76px; font-size: 24px; }
+body.host.touch .marks .btn.big .lucide { width: 28px; height: 28px; }
+/* ნაბიჯის ღილაკი და წინა/შემდეგი ყოველთვის ეკრანის ქვემოთ */
+body.host.touch .steprow { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; padding: 10px 20px calc(10px + env(safe-area-inset-bottom)); background: rgba(255, 255, 255, .96); backdrop-filter: blur(8px); box-shadow: 0 -6px 24px rgba(58, 15, 42, .12); }
+body.host.touch .steprow .btn.big { --h: 68px; font-size: 21px; }
+body.host.touch .steprow .jumpbtn { width: auto; padding: 0 18px; gap: 6px; flex: 0 0 auto; }
+/* მედია, პასუხები, მოთამაშეები — დიდი და ადვილად დასაჭერი */
+body.host.touch .mediapanel { gap: 10px; padding: 12px; }
+body.host.touch .mediapanel .btn { flex: 1 1 200px; min-height: 56px; font-size: 17px; }
+body.host.touch .mediapanel > .muted { flex: 1 1 100%; }
+body.host.touch .vote { min-height: 52px; font-size: 18px; }
+body.host.touch .tans { flex-wrap: wrap; row-gap: 8px; }
+body.host.touch .tans .btn { min-height: 52px; }
+body.host.touch .prow2 { flex-wrap: wrap; row-gap: 8px; min-height: 60px; }
+body.host.touch .prow2 select { flex: 1 1 160px; }
+body.host.touch .cols { grid-template-columns: minmax(0, 1fr); }
+body.host.touch .qlist .qr { min-height: 60px; }
+body.host.touch .tchip { min-height: 44px; padding: 6px 12px; }
+body.host.touch .teamrow .btn.icon { --h: 52px; }
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (min-width: 1000px) {
+  /* ფართო iPad: კითხვა მარცხნივ დიდად, სია მარჯვნივ */
+  body.host.touch #view > .ctl-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-items: start; }
+  body.host.touch .ctl-grid > .qlist { position: sticky; top: 84px; max-height: calc(100vh - 200px); overflow-y: auto; }
+}
