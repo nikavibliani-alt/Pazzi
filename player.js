@@ -180,6 +180,14 @@ async function sendAns(a) {
   try { const r = await db.ref('seq/' + qid).transaction(n => (n || 0) + 1); if (r.committed) await ref.child('seq').set(r.snapshot.val()); } catch (e) {}
 }
 
+// „დადასტურება“: მხოლოდ ახლა იგზავნება პასუხი (რიგი/„პირველი სწორი“ — დადასტურების დროით)
+function confirmAns() {
+  const q = S.live && S.live.q; if (!q || S.myAns) return;
+  if (q.type === 'text') { const v = S.typed.trim(); if (v) sendAns(v); }
+  else if (q.type === 'multi') { if (S.sel.length) sendAns(S.sel.slice().sort((x, y) => x - y)); }
+  else if (S.sel.length) sendAns(S.sel[0]);
+}
+
 // ───────── გამოსახვა ─────────
 let lastHtml = '', lastKey = '';
 function view(html, key) {
@@ -307,17 +315,19 @@ function g2Html(m, l) {
   const qt = `<div class="qtext">${esc(q.text)}</div>`;
   const phase = l.phase;
   if (phase === 'answering') {
-    if (a) return qt + sentHtml(q, a) + msg(m.avatar, pickText('wait_others', seed));
+    if (a) return qt + sentHtml(q, a) + msg(m.avatar, 'პასუხი გაგზავნილია', pickText('wait_others', seed));
+    // არჩევა → „დადასტურება“; მანამდე პასუხი ბაზაში არ იგზავნება და შეიძლება შეიცვალოს
+    const ok = q.type === 'text' ? !!S.typed.trim() : S.sel.length > 0;
+    const confirm = `<button class="btn primary block lg confirm" id="confirmAns" ${ok ? '' : 'disabled'}>დადასტურება</button>`;
     if (q.type === 'single' || q.type === 'poll') {
-      return qt + opts.map((o, i) => `<button class="opt" data-pick="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${LETTERS[i]}</span>${esc(o)}</button>`).join('');
+      return qt + opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-pick="${i}" aria-pressed="${S.sel.includes(i)}" style="--c:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? ico('check') : LETTERS[i]}</span>${esc(o)}</button>`).join('') + confirm;
     }
     if (q.type === 'multi') {
-      return qt + `<div class="msg" style="padding:0 0 4px"><small>ერთზე მეტი პასუხია სწორი</small></div>` +
-        opts.map((o, i) => `<button class="opt ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" style="--c:${OPT_COLORS[i]}"><span class="lt">${S.sel.includes(i) ? ico('check') : LETTERS[i]}</span>${esc(o)}</button>`).join('') +
-        `<button class="btn primary block lg" id="sendMulti" ${S.sel.length ? '' : 'disabled'} style="margin-top:18px">გაგზავნა</button>`;
+      return `<div class="multibadge">${MULTI_BADGE}</div>` + qt + `<div class="msg" style="padding:0 0 4px"><small>მონიშნე ყველა სწორი, მერე დააჭირე „დადასტურებას“</small></div>` +
+        opts.map((o, i) => `<button class="opt chk ${S.sel.includes(i) ? 'sel' : ''}" data-tog="${i}" role="checkbox" aria-checked="${S.sel.includes(i)}" style="--c:${OPT_COLORS[i]}"><span class="box">${S.sel.includes(i) ? ico('check') : ''}</span><span class="lt2">${LETTERS[i]}</span>${esc(o)}</button>`).join('') + confirm;
     }
     if (q.type === 'text') {
-      return qt + `<textarea id="typed" maxlength="80" placeholder="ჩაწერე პასუხი…">${esc(S.typed)}</textarea><button class="btn primary block lg" id="sendText">გაგზავნა</button>`;
+      return qt + `<textarea id="typed" maxlength="80" placeholder="ჩაწერე პასუხი…">${esc(S.typed)}</textarea>` + confirm;
     }
   }
   if (phase === 'locked') return qt + (a ? sentHtml(q, a) + msg(m.avatar, 'პასუხები დაიკეტა', 'ველოდებით სწორ პასუხს…') : msg(m.avatar, pickText('too_slow', seed), 'პასუხები დაიკეტა'));
@@ -378,25 +388,25 @@ document.addEventListener('click', e => {
   else if (t.id === 'buzz') buzz();
   else if (t.dataset.vote) vote(t.dataset.vote);
   else if (t.dataset.pvote) pvote(t.dataset.pvote);
-  else if (t.dataset.pick !== undefined) sendAns(Number(t.dataset.pick));
+  else if (t.dataset.pick !== undefined) { if (S.myAns) return; S.sel = [Number(t.dataset.pick)]; if (navigator.vibrate) navigator.vibrate(15); render(); }
   else if (t.dataset.tog !== undefined) {
+    if (S.myAns) return;
     const i = Number(t.dataset.tog);
-    S.sel = S.sel.includes(i) ? S.sel.filter(x => x !== i) : S.sel.concat(i).sort();
-    render();
+    S.sel = S.sel.includes(i) ? S.sel.filter(x => x !== i) : S.sel.concat(i).sort((x, y) => x - y);
+    if (navigator.vibrate) navigator.vibrate(15); render();
   }
-  else if (t.id === 'sendMulti') { if (S.sel.length) sendAns(S.sel.slice().sort()); }
-  else if (t.id === 'sendText') { const v = S.typed.trim(); if (v) sendAns(v); }
+  else if (t.id === 'confirmAns') confirmAns();
 });
 document.addEventListener('change', e => { if (e.target.id === 'agree') { S.form.agree = e.target.checked; S.form.err = ''; render(); } });
 document.addEventListener('input', e => {
   if (e.target.id === 'fcode') S.form.code = e.target.value;
   else if (e.target.id === 'fname') { S.form.name = e.target.value; render(); }
-  else if (e.target.id === 'typed') S.typed = e.target.value;
+  else if (e.target.id === 'typed') { S.typed = e.target.value; const b = $('#confirmAns'); if (b) b.disabled = !S.typed.trim(); }
   else if (e.target.id === 'frcode') S.form.rcode = e.target.value;
 });
 // კლავიატურის გახსნისას ველი და „გაგზავნა“ ჩანდეს
-document.addEventListener('focusin', e => { if (e.target.id === 'typed') setTimeout(() => { const b = $('#sendText'); (b || e.target).scrollIntoView({ block: 'end', behavior: 'smooth' }); }, 350); });
-if (window.visualViewport) visualViewport.addEventListener('resize', () => { const a = document.activeElement; if (a && a.id === 'typed') { const b = $('#sendText'); if (b) b.scrollIntoView({ block: 'end' }); } });
+document.addEventListener('focusin', e => { if (e.target.id === 'typed') setTimeout(() => { const b = $('#confirmAns'); (b || e.target).scrollIntoView({ block: 'end', behavior: 'smooth' }); }, 350); });
+if (window.visualViewport) visualViewport.addEventListener('resize', () => { const a = document.activeElement; if (a && a.id === 'typed') { const b = $('#confirmAns'); if (b) b.scrollIntoView({ block: 'end' }); } });
 document.addEventListener('touchstart', e => {
   const t = e.target.closest('#buzz'); if (t) { e.preventDefault(); if (!SFX.ctx || SFX.ctx.state !== 'running') unlockSound(); buzz(); }
 }, { passive: false });

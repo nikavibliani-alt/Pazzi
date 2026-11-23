@@ -44,7 +44,7 @@ window.addEventListener('scroll', closeMenu, true);
 
 // ───────── „ახალი საღამოს დაწყება“: ყველაფრის განულება (კითხვები, მედია, წესები, გუნდების სახელები, PIN რჩება) ─────────
 const FRESH_DEL = ['ყველა მოთამაშე (ტელეფონებმა თავიდან უნდა შემოვიდნენ)', 'ყველა ქულა და გუნდებში განაწილება', 'სერიები, პასუხები, ღილაკზე დაჭერები', 'ბრძოლების და ხმის მიცემის შედეგები', 'თამაშების პროგრესი და „საღამო აქამდე“'];
-const FRESH_KEEP = 'რჩება: ქვიზები და კითხვები, სურათები, ვიდეოები, ხმები, წესები, პარამეტრები, გუნდების სახელები და PIN.';
+const FRESH_KEEP = 'ჯერ ეს საღამო ავტომატურად შეინახება „ისტორიაში“ (ადმინი). რჩება: ქვიზები და კითხვები, სურათები, ვიდეოები, ხმები, წესები, პარამეტრები, გუნდების სახელები და PIN.';
 // დაცვა შემთხვევითი დაჭერისგან: ღილაკი მუშაობს 2 წამით დაჭერილ მდგომარეობაში ან „კი“-ს ჩაწერის შემდეგ
 function confirmFresh() {
   return new Promise(res => {
@@ -72,12 +72,39 @@ function confirmFresh() {
     document.body.appendChild(d);
   });
 }
+// ───────── ისტორია: საღამოს შენახვა (ქულები, გუნდები, პოდიუმი, MVP, ბრძოლები, ყველა პასუხი) ─────────
+const EVENING_NODES = ['players', 'answers', 'awarded', 'results', 'teams', 'tstreak', 'g1log', 'bvotes', 'pvotes', 'bround', 'session', 'battles', 'polls'];
+async function archiveEvening(note) {
+  const snaps = await Promise.all(EVENING_NODES.map(k => db.ref(k).once('value')));
+  const raw = {}; EVENING_NODES.forEach((k, i) => { raw[k] = snaps[i].val() || null; });
+  const players = cleanPlayers(raw.players);
+  if (!Object.keys(players).length && !raw.awarded) return null; // ცარიელი საღამო — არაფერია შესანახი
+  Object.values(players).forEach(p => { delete p.conns; });
+  const rank = ranking(players, raw.awarded), nm = id => (players[id] || {}).name || '?';
+  const teams = Object.entries(raw.teams || {}).map(([i, t]) => ({ i: Number(i), name: teamName(raw.teams, i), score: (t && t.score) || 0 })).sort((a, b) => b.score - a.score);
+  const places = Math.max(1, Math.min(3, Number(finalRules().places) || 3));
+  const pv = Object.entries(raw.pvotes || {}).map(([round, v]) => { const c = pollCount(players, v); return { round, n: Object.keys(v || {}).length, winners: c.winners.map(id => ({ id, name: nm(id) })), list: c.list.map(x => ({ id: x.pid, name: nm(x.pid), n: x.n })) }; });
+  const bt = Object.entries(raw.bvotes || {}).map(([round, v]) => {
+    const info = (raw.bround || {})[round] || {}, perf = info.perf || {}; Object.values(v || {}).forEach(t => { perf[t] = true; });
+    const c = battleCount(perf, v), b = (raw.battles || {})[info.bid] || {};
+    return { round, name: b.name || 'ბრძოლა', winners: c.winners.map(id => ({ id, name: nm(id) })), list: c.list.map(x => ({ id: x.pid, name: nm(x.pid), n: x.n })) };
+  });
+  const qids = new Set(Object.keys(raw.answers || {}).concat(Object.keys(raw.awarded || {}), Object.values(raw.g1log || {}).map(x => x && x.qid)).filter(Boolean));
+  const qs = {}; if (qids.size) { const all = (await db.ref('questions').once('value')).val() || {}; qids.forEach(id => { const q = all[id]; if (q) qs[id] = { text: q.text || '', type: q.type || '', game: q.game || 2, options: q.options || null, correct: q.correct || null, answer: q.answer || '', order: q.order || 0, quiz: q.quiz || '' }; }); }
+  const ses = raw.session || {}, at = Date.now();
+  const rec = { at, note: note || '', code: ses.code || '', sid: ses.sid || '', started: ses.started || 0,
+    summary: { players: rank.map(p => ({ id: p.id, name: p.name, team: p.team == null ? null : p.team, avatar: p.avatar || '', score: p.score })), teams,
+      podium: rank.slice(0, places).map(p => p.id), last: rank.length > places ? rank[rank.length - 1].id : null, mvp: pv, battles: bt },
+    qs, raw: Object.assign({}, raw, { players }) };
+  const ref = db.ref('history').push(); await ref.set(rec); return ref.key;
+}
 async function freshEvening() {
   if (!(await confirmFresh())) return false;
+  try { await archiveEvening('ავტომატურად, ახალი საღამოს წინ'); } catch (e) { toast('საღამო ისტორიაში ვერ შეინახა — არაფერი წაშლილა'); return false; }
   const [s, t] = await Promise.all([db.ref('session').once('value'), db.ref('teams').once('value')]);
   const oldCode = String((s.val() || {}).code || ''); let code;
   do code = String(Math.floor(1000 + Math.random() * 9000)); while (code === oldCode);
-  const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, tstreak: null, bvotes: null, pvotes: null, yt: null, g1log: null, tvstate: null, ctl: null,
+  const u = { players: null, answers: null, awarded: null, seq: null, rejoin: null, results: null, avatars: null, tstreak: null, bvotes: null, pvotes: null, yt: null, g1log: null, tvstate: null, ctl: null, bround: null,
     live: { mode: 'lobby' }, session: { code, sid: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nextTeam: 0, started: Date.now() } };
   Object.keys(t.val() || {}).forEach(i => { u['teams/' + i + '/score'] = 0; });
   await db.ref().update(u);

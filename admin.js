@@ -2,7 +2,7 @@
 const M = { tab: 'quiz', quizzes: {}, questions: {}, images: {}, sounds: {}, videos: {}, teams: {}, selQuiz: null, selQ: null, cur: null, sel: new Set(), moveIds: [], loaded: {}, imgData: {} };
 const view = $('#view');
 const MAX_SND_MB = 3, MAX_SND_SEC = 30, MAX_GIF_MB = 2.5, MAX_VID_MB = 4, MAX_VID_SEC = 10, WIN_VID_MB = 10, WIN_VID_SEC = 60;
-const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', streaks: 'სერიები', battles: 'ბრძოლები', polls: 'ხმის მიცემა (MVP)', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები' };
+const TAB_TITLES = { quiz: 'ქვიზები და კითხვები', rules: 'წესები', streaks: 'სერიები', battles: 'ბრძოლები', polls: 'ხმის მიცემა (MVP)', images: 'სურათები', sounds: 'ხმები', settings: 'პარამეტრები', history: 'ისტორია' };
 const TYPE_NAMES = { buzz: 'ბლიცი', single: 'ერთი სწორი', multi: 'რამდენიმე სწორი', poll: 'გამოკითხვა', text: 'ჩაწერითი' };
 const EV_NAME = Object.fromEntries(SOUND_EVENTS);
 const Q_EVENTS = { 1: ['buzz', 'right', 'wrong'], 2: ['reveal', 'scoreboard'] };
@@ -73,6 +73,7 @@ function render(force) {
   else if (M.tab === 'polls') renderPolls();
   else if (M.tab === 'images') renderImages();
   else if (M.tab === 'sounds') renderSounds();
+  else if (M.tab === 'history') renderHistory();
   else renderSettings();
 }
 function renderChrome() {
@@ -85,7 +86,7 @@ function renderChrome() {
 }
 const activeQuiz = g => (CFG.active || {})['g' + g];
 // ტელეფონზე ქვედა ზოლი: 4 მთავარი + „მეტი“ ამ განყოფილებებით
-const MORE_TABS = [['sounds', 'volume-2', 'ხმები'], ['battles', 'swords', 'ბრძოლები'], ['polls', 'vote', 'ხმის მიცემა (MVP)'], ['settings', 'settings', 'პარამეტრები']];
+const MORE_TABS = [['sounds', 'volume-2', 'ხმები'], ['battles', 'swords', 'ბრძოლები'], ['polls', 'vote', 'ხმის მიცემა (MVP)'], ['history', 'history', 'ისტორია'], ['settings', 'settings', 'პარამეტრები']];
 const isPhone = () => window.matchMedia('(max-width: 799px)').matches;
 const pic = a => `<span class="pic">${av(a)}</span>`;
 const quizList = game => Object.entries(M.quizzes).filter(([, q]) => q.game === game).sort((a, b) => (a[1].created || 0) - (b[1].created || 0));
@@ -429,7 +430,12 @@ const ACT = {
   skclear(path) { setStreakField(path + '.media', null); renderStreaks(); },
   resetev(ev) { db.ref('config/sounds/' + ev).set('default').then(() => render(true)); },
   resettext(k) { db.ref('config/texts/' + k).remove().then(() => render(true)); },
-  async fresh() { if (await freshEvening()) toast('ახალი საღამო დაიწყო'); },
+  async fresh() { if (await freshEvening()) { M.hist = null; toast('საღამო შეინახა ისტორიაში, ახალი საღამო დაიწყო'); } },
+  histopen(id) { M.histSel = id; render(true); window.scrollTo(0, 0); },
+  histback() { M.histSel = null; render(true); },
+  async histreload() { await loadHistory(true); render(true); },
+  async histnow() { if (!(await popup({ title: 'შენახვა ისტორიაში', text: 'მიმდინარე საღამო (ქულები, პასუხები, გამარჯვებულები) შეინახება ისტორიაში. თამაშში არაფერი შეიცვლება.', ok: 'შენახვა' }))) return; const id = await archiveEvening('ხელით შენახული'); if (!id) return toast('შესანახი არაფერია'); await loadHistory(true); M.histSel = id; render(true); toast('შეინახა'); },
+  async backupexp() { try { await exportBackup(); } catch (e) { toast('ექსპორტი ვერ მოხერხდა'); } },
   savepin() {
     const v = $('#s_pin').value.trim();
     if (v.length < 4) { note('PIN-ში მინიმუმ 4 სიმბოლო უნდა იყოს.'); return; }
@@ -685,9 +691,89 @@ function renderSettings() {
   <div class="panel"><h3>${L('users')}გუნდები</h3><p class="hint">გუნდების რაოდენობა და სახელები ახლა „წესებშია“.</p><button class="btn" data-sec="rules">${L('scale')}წესებზე გადასვლა</button></div>
   <div class="panel"><h3>${L('check')}„ხელს ვაწერ“ შესვლისას</h3><textarea id="s_agree" rows="3">${esc(agreeText())}</textarea><p class="hint">ტელეფონზე ჩანს შესვლისას. ვიდრე არ მონიშნავენ, შესვლის ღილაკი არ ირთვება.</p></div>
   <div class="panel"><h3>${L('sparkles')}ახალი საღამოს დაწყება</h3><p class="hint">წაშლის ყველა მოთამაშეს, ქულას, გუნდებში განაწილებას, პასუხებს, ბრძოლების და ხმის მიცემის შედეგებს და თამაშების პროგრესს. ტელეფონები თავიდან შემოდიან ახალი კოდით. ქვიზები, მედია, წესები, გუნდების სახელები და PIN რჩება.</p><button class="btn danger" data-a="fresh" id="freshBtn">${L('sparkles')}ახალი საღამოს დაწყება</button></div>
+  <div class="panel"><h3>${L('hard-drive-download')}სარეზერვო ფაილი</h3><p class="hint">ერთ ფაილში: ყველა ქვიზი, კითხვა, სურათი, ვიდეო, ხმა, პარამეტრი და ისტორია. იმპორტი მხოლოდ ამატებს იმას, რაც ჯერ არ არის — არსებულს არ შლის და არ ცვლის.</p><div class="row"><button class="btn primary" data-a="backupexp" id="backupExp">${L('download')}სარეზერვოს ჩამოტვირთვა</button><label class="btn">${L('upload')}სარეზერვოდან აღდგენა<input type="file" id="backupImp" accept="application/json,.json" hidden></label></div></div>
   <div class="panel"><h3>${L('lock')}წამყვანის და ადმინის PIN</h3><div class="row"><input type="text" id="s_pin" class="grow" value="${esc(CFG.pin || DEFAULT_PIN)}" maxlength="12"><button class="btn primary" data-a="savepin">${L('check')}შენახვა</button></div><p class="hint">PIN მსუბუქი დაცვაა, რეპოზიტორია საჯაროა.</p></div></div>
   <div class="panel"><h3>${L('monitor-play')}ტვ-ზე შესავლები („ტვ-ზე ჩვენება“)</h3><p class="hint">თამაშის სახელი და 1–2 ხაზი წესები, რაც ტვ-ზე ჩანს წამყვანის „ტვ-ზე ჩვენებაზე“. ცარიელი = ნაგულისხმევი.</p>${introList(M.battles || null).map(x => { const it = introOf(x.key, M.battles || null), own = ((CFG.intros || {})[introCfgKey(x.key)]) || {}; return `<label class="f">${esc(x.short)}</label><input type="text" data-intro="${esc(introCfgKey(x.key))}|title" value="${esc(own.title || '')}" placeholder="${esc(it.title)}" maxlength="40"><textarea data-intro="${esc(introCfgKey(x.key))}|text" rows="2" placeholder="${esc(it.text)}" style="margin-top:6px">${esc(own.text || '')}</textarea>`; }).join('')}</div>
   <div class="panel"><h3>${L('message-circle')}სასაცილო ტექსტები</h3><p class="hint">თითო ხაზი = ერთი ვარიანტი, თამაში შემთხვევით ირჩევს. ბოლო ადგილის ტექსტში {name} ჩაანაცვლებს სახელს.</p>${TEXT_KEYS.map(([k, label]) => `<label class="f">${label}</label><textarea data-text="${k}" rows="${Math.min(7, textList(k).length + 1)}">${esc(textList(k).join('\n'))}</textarea><button class="btn quiet" data-a="resettext" data-id="${k}" style="margin-top:6px">${L('rotate-ccw')}ნაგულისხმევზე დაბრუნება</button>`).join('')}</div></div>`);
+}
+
+// ───────── ისტორია: წარსული საღამოები ─────────
+const fmtDate = t => { if (!t) return ''; const d = new Date(t), z = n => String(n).padStart(2, '0'); return `${z(d.getDate())}.${z(d.getMonth() + 1)}.${d.getFullYear()} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+async function loadHistory(force) {
+  if (M.hist && !force) return M.hist;
+  M.hist = (await db.ref('history').once('value')).val() || {}; return M.hist;
+}
+async function renderHistory() {
+  if (!M.hist) { setHTML(view, '<div class="panel"><p class="muted">იტვირთება…</p></div>'); await loadHistory(); if (M.tab !== 'history') return; }
+  const h = M.hist, list = Object.entries(h).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+  if (M.histSel && h[M.histSel]) return setHTML(view, historyDetail(M.histSel, h[M.histSel]));
+  const rows = list.map(([id, e]) => { const s = e.summary || {}, top = (s.players || [])[0]; return `<button class="histrow" data-a="histopen" data-id="${id}"><span class="hd">${L('calendar')}<b>${esc(fmtDate(e.started || e.at))}</b></span><span class="grow">${esc(e.note || '')}</span><span class="muted">${(s.players || []).length} მოთამაშე</span>${top ? `<span class="chip star">${L('trophy')}${esc(top.name)} · ${fmtPts(top.score)}</span>` : ''}${L('chevron-right')}</button>`; }).join('');
+  setHTML(view, `<div class="panel"><h3>${L('history')}წარსული საღამოები<span class="grow"></span><button class="btn quiet" data-a="histreload">${L('refresh-cw')}განახლება</button></h3><p class="hint">„ახალი საღამოს დაწყება“ მიმდინარე საღამოს ჯერ აქ ინახავს, მერე ასუფთავებს.</p>${rows || '<div class="empty">ისტორია ჯერ ცარიელია.</div>'}<div class="row" style="margin-top:14px"><button class="btn" data-a="histnow">${L('save')}მიმდინარე საღამოს შენახვა ახლავე</button></div></div>`);
+}
+function historyDetail(id, e) {
+  const s = e.summary || {}, P = (e.raw && e.raw.players) || {}, nm = pid => (P[pid] || {}).name || '?', ps = s.players || [], byId = {}; ps.forEach(p => { byId[p.id] = p; });
+  const tn = i => { const t = (s.teams || []).find(x => x.i === Number(i)); return t ? t.name : ''; };
+  const medal = ['🥇', '🥈', '🥉'];
+  const podium = (s.podium || []).map((pid, i) => `<div class="hpod"><span class="md">${medal[i] || i + 1}</span><span class="pic">${av((byId[pid] || {}).avatar)}</span><b>${esc(nm(pid))}</b><span class="muted">${fmtPts((byId[pid] || {}).score)} ქულა</span></div>`).join('');
+  const last = s.last ? `<div class="hpod lastp"><span class="md">🐢</span><span class="pic">${av((byId[s.last] || {}).avatar)}</span><b>${esc(nm(s.last))}</b><span class="muted">ბოლო ადგილი · ${fmtPts((byId[s.last] || {}).score)}</span></div>` : '';
+  const votes = (arr2, title, icon) => arr2.map(v => `<div class="hvote"><b>${L(icon)}${esc(v.name || title)}</b>: ${v.winners.length ? v.winners.map(w => esc(w.name)).join(' და ') : '—'}<span class="muted"> · ${v.list.map(x => esc(x.name) + ' ' + x.n).join(', ')}</span></div>`).join('');
+  const teams = (s.teams || []).map((t, i) => `<div class="row hteam"><span>${i + 1}.</span>${ttag(t.i, t.name)}<span class="grow"></span><b>${fmtPts(t.score)}</b></div>`).join('') || '<p class="hint">—</p>';
+  const board = `<table class="htbl"><thead><tr><th>#</th><th>მოთამაშე</th><th>გუნდი</th><th>ქულა</th></tr></thead><tbody>${ps.map((p, i) => `<tr><td>${i + 1}</td><td><span class="pic sm">${av(p.avatar)}</span>${esc(p.name)}</td><td>${p.team == null ? '' : esc(tn(p.team))}</td><td><b>${fmtPts(p.score)}</b></td></tr>`).join('')}</tbody></table>`;
+  // კითხვები: თითო მოთამაშის პასუხი
+  const qs = e.qs || {}, ans = (e.raw && e.raw.answers) || {}, aw = (e.raw && e.raw.awarded) || {}, g1 = Object.values((e.raw && e.raw.g1log) || {});
+  const ansTxt = (q, a) => { if (!a) return ''; const o = arr(q.options); if (q.type === 'text') return esc(a.a); if (q.type === 'multi') return arr(a.a).map(i => esc(o[i] || '?')).join(' • '); return esc(o[a.a] !== undefined ? o[a.a] : String(a.a)); };
+  const qlist = Object.entries(qs).sort((a, b) => (a[1].game - b[1].game) || ((a[1].order || 0) - (b[1].order || 0)));
+  const qhtml = qlist.map(([qid, q]) => {
+    const o = arr(q.options), corr = q.type === 'text' ? esc(q.answer || '') : arr(q.correct).map(i => esc(o[i] || '')).join(' • ');
+    let body;
+    if (q.game === 1) body = g1.filter(x => x.qid === qid).map(x => `<div>${ttag(x.team, tn(x.team) || 'გუნდი ' + (Number(x.team) + 1))} ${x.kind === 'r' ? 'სწორი' : 'არასწორი'} ${x.pts > 0 ? '+' : ''}${fmtPts(x.pts)}</div>`).join('') || '<span class="hint">არავინ მონიშნულა</span>';
+    else { const a = ans[qid] || {}; body = `<table class="htbl sm"><tbody>${ps.map(p => { const x = a[p.id], pts = Number((aw[qid] || {})[p.id]) || 0; return `<tr><td>${esc(p.name)}</td><td>${x ? ansTxt(q, x) : '<span class="hint">—</span>'}</td><td>${pts ? (pts > 0 ? '+' : '') + fmtPts(pts) : ''}</td></tr>`; }).join('')}</tbody></table>`; }
+    return `<details class="hq"><summary><span class="tag t-${q.type}">${q.game === 1 ? 'ბლიცი' : (TYPE_NAMES[q.type] || '')}</span>${esc(q.text || '(ცარიელი)')}</summary>${corr ? `<p class="hint">სწორი პასუხი: <b>${corr}</b></p>` : ''}${body}</details>`;
+  }).join('');
+  return `<div class="row" style="margin-bottom:14px"><button class="btn" data-a="histback">${L('arrow-left')}ყველა საღამო</button><span class="grow"></span><span class="chip">${L('calendar')}${esc(fmtDate(e.started || e.at))} · კოდი ${esc(e.code || '')}</span></div>
+  ${e.note ? `<p class="muted">${esc(e.note)}</p>` : ''}
+  <div class="cols"><div><div class="panel"><h3>${L('trophy')}პოდიუმი</h3><div class="hpods">${podium}${last}</div></div>
+  <div class="panel"><h3>${L('vote')}MVP და ბრძოლები</h3>${votes(s.mvp || [], 'MVP', 'star')}${votes(s.battles || [], 'ბრძოლა', 'swords')}${!(s.mvp || []).length && !(s.battles || []).length ? '<p class="hint">ხმის მიცემა არ ყოფილა.</p>' : ''}</div>
+  <div class="panel"><h3>${L('users')}ბლიცი: გუნდების ქულები</h3>${teams}</div></div>
+  <div class="panel"><h3>${L('list-ordered')}ქულების ცხრილი</h3>${board}</div></div>
+  <div class="panel"><h3>${L('list-checks')}კითხვები და ყველა პასუხი (${qlist.length})</h3>${qhtml || '<p class="hint">—</p>'}</div>`;
+}
+
+// ───────── სარეზერვო ფაილი: ექსპორტი / იმპორტი (იმპორტი არაფერს შლის) ─────────
+const BACKUP_KEYS = ['quizzes', 'questions', 'library', 'libdata', 'config', 'history', 'battles', 'polls', 'teams'];
+const BACKUP_DEPTH = { library: 2, libdata: 2, config: 99 }; // სხვები: 1 (თითო ჩანაწერი მთლიანად)
+async function exportBackup() {
+  toast('სარეზერვო ფაილი მზადდება…');
+  const snaps = await Promise.all(BACKUP_KEYS.map(k => db.ref(k).once('value')));
+  const data = {}; BACKUP_KEYS.forEach((k, i) => { data[k] = snaps[i].val() || null; });
+  const blob = new Blob([JSON.stringify({ app: 'pazzi', v: 1, at: Date.now(), data })], { type: 'application/json' });
+  const d = new Date(), z = n => String(n).padStart(2, '0'), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `pazzi-backup-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  return blob.size;
+}
+// მხოლოდ ის, რაც ბაზაში ჯერ არ არის → { path: value }
+function missingPaths(ex, inc, path, depth, out) {
+  if (inc === null || inc === undefined) return;
+  if (ex === null || ex === undefined) { out[path] = inc; return; }
+  if (depth <= 0 || typeof ex !== 'object' || typeof inc !== 'object') return; // უკვე არის — არ ვცვლით
+  for (const k in inc) missingPaths(ex[k], inc[k], path + '/' + k, depth - 1, out);
+}
+async function importBackup(file) {
+  let j; try { j = JSON.parse(await file.text()); } catch (e) { return popup({ title: 'ფაილი ვერ წავიკითხე', text: 'ეს არ ჰგავს ფაციფუცობანას სარეზერვო ფაილს.', ok: 'კარგი' }); }
+  const data = j && j.app === 'pazzi' && j.data; if (!data) return popup({ title: 'ფაილი ვერ წავიკითხე', text: 'ეს არ ჰგავს ფაციფუცობანას სარეზერვო ფაილს.', ok: 'კარგი' });
+  const out = {}, cnt = {};
+  for (const k of BACKUP_KEYS) { if (!data[k]) continue; const ex = (await db.ref(k).once('value')).val(); const o = {}; missingPaths(ex, data[k], k, BACKUP_DEPTH[k] || 1, o); cnt[k] = Object.keys(o).length; Object.assign(out, o); }
+  const n = Object.keys(out).length;
+  if (!n) return popup({ title: 'ახალი არაფერია', text: 'ფაილში ყველაფერი უკვე ბაზაშია. არაფერი შეცვლილა.', ok: 'კარგი' });
+  const names = { quizzes: 'ქვიზი', questions: 'კითხვა', library: 'მედიის ჩანაწერი', libdata: 'მედიის ფაილი', config: 'პარამეტრი', history: 'საღამო ისტორიაში', battles: 'ბრძოლა', polls: 'ხმის მიცემა', teams: 'გუნდი' };
+  const txt = Object.entries(cnt).filter(([, v]) => v).map(([k, v]) => `${names[k]}: ${v}`).join(', ');
+  if (!(await popup({ title: 'იმპორტი', text: `დაემატება მხოლოდ ის, რაც ჯერ არ არის (${txt}). არსებული არაფერი წაიშლება და არ შეიცვლება.`, ok: 'დამატება' }))) return;
+  // ნაწილ-ნაწილ, რომ დიდი ფაილი ერთ ჩაწერაში არ გაიჭედოს
+  let batch = {}, size = 0;
+  for (const [p, v] of Object.entries(out)) { const s = JSON.stringify(v).length; if (size + s > 4e6 && size) { await db.ref().update(batch); batch = {}; size = 0; } batch[p] = v; size += s; }
+  if (size) await db.ref().update(batch);
+  M.hist = null; toast(`დაემატა: ${n}`); return cnt;
 }
 
 // ───────── ღონისძიებები ─────────
@@ -727,6 +813,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', async e => {
   const t = e.target;
   if (t.classList && t.classList.contains('qsel')) { t.checked ? M.sel.add(t.dataset.id) : M.sel.delete(t.dataset.id); drawQList(); return; }
+  if (t.id === 'backupImp' && t.files[0]) { const f = t.files[0]; t.value = ''; try { await importBackup(f); } catch (err) { toast('იმპორტი ვერ მოხერხდა'); } return; }
   if (t.id === 'e_type') { collect(); const c = M.cur; c.type = t.value; const n = t.value === 'poll' ? 2 : (t.value === 'text' ? 0 : 4); const o = arr(c.options).slice(0, n); while (o.length < n) o.push(''); c.options = o; c.correct = []; scheduleQSave(); drawEditor(); drawQListSoon(); }
   else if (t.id === 'e_snd') { setField('snd', t.value); drawQListSoon(); }
   else if (t.dataset.qev) setSfx(t.dataset.qev, t.value);

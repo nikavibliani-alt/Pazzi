@@ -464,7 +464,8 @@ const A = {
     const perf = {}; Object.keys(S.bpick || {}).forEach(id => { if (S.players[id]) perf[id] = true; });
     if (Object.keys(perf).length < 2) return;
     if (S.live.mode && !['lobby', 'break', 'battle', 'intro'].includes(S.live.mode) && !(await popup({ title: 'ბრძოლის დაწყება', text: 'ტვ-ზე ბრძოლა გამოჩნდება. გავაგრძელოთ?', ok: 'დაწყება' }))) return;
-    db.ref('live').set({ mode: 'battle', bid: S.bsel, round: Date.now(), perf, phase: 'voting' });
+    const round = Date.now(); db.ref('bround/' + round).set({ bid: S.bsel || null, perf }); // ისტორიისთვის: რომელი ბრძოლა, ვინ გამოვიდა
+    db.ref('live').set({ mode: 'battle', bid: S.bsel, round, perf, phase: 'voting' });
     markGame('battles', { state: 'running', n: ((gamesState().battles || {}).n || 0) + 1 });
   },
   bclose() { db.ref('live').transaction(l => { if (!l || l.mode !== 'battle' || l.phase !== 'voting') return; l.phase = 'closed'; return l; }, null, false); },

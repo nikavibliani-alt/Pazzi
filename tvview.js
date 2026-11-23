@@ -1,5 +1,5 @@
 // ფაციფუცობანა — ტვ-ის კითხვის ეკრანის ნაწილები (იყენებს ტვ და ადმინის გადახედვა)
-function tvQCard(q) { return `<div class="q pop">${esc(q.text || '…')}</div>`; }
+function tvQCard(q) { return `${q && q.type === 'multi' ? `<div class="multibadge tv">${MULTI_BADGE}</div>` : ''}<div class="q pop">${esc(q.text || '…')}</div>`; }
 function tvImgBox(imgHtml) { return imgHtml ? `<div class="imgbox rise">${imgHtml}</div>` : ''; }
 // o: { phase, corr:[], votes:[] }
 function tvOptions(q, o) {

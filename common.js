@@ -263,6 +263,7 @@ const RULE_OPTS = {
   sameTeamTwice: [[true, 'კი'], [false, 'არა, ჯერ სხვამ უნდა სცადოს']]
 };
 const optLabel = (k, v) => { const o = (RULE_OPTS[k] || []).find(x => String(x[0]) === String(v)); return o ? o[1] : String(v); };
+const MULTI_BADGE = 'ერთზე მეტი პასუხია სწორი'; // რამდენიმე სწორი: ტვ-ზე და ტელეფონზე
 function rulesG(g) { return Object.assign({}, DEFAULT_RULES[g], (CFG.rules || {})['g' + g] || {}); }
 function rulesFor(q) { if (!q) return {}; const r = Object.assign(rulesG(q.game || 2), q.rules || {}); r.teamsOn = rulesG(1).teamsOn; return r; }
 function finalRules() { return Object.assign({ places: 3, loser: true }, (CFG.rules || {}).final || {}); }

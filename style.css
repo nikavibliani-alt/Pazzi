@@ -908,3 +908,29 @@ body.host.app .btn.tc-ok, body.host.app .btn.tc-no { white-space: normal; flex-d
 .tv .introteams { width: 100%; }
 .tcard.buzzing { box-shadow: 0 0 0 4px var(--pink), 0 8px 22px rgba(194, 24, 91, .3); transform: translateY(-2px); }
 .tcard.dim { opacity: .55; }
+/* ისტორია (ადმინი) */
+.histrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; margin: 8px 0; border: 1px solid var(--pink-l); border-radius: var(--rb); background: #fff; color: var(--ink); font: inherit; text-align: left; cursor: pointer; flex-wrap: wrap; }
+.histrow:hover { border-color: var(--pink); }
+.histrow .hd { display: inline-flex; gap: 8px; align-items: center; }
+.hpods { display: flex; flex-wrap: wrap; gap: 12px; }
+.hpod { flex: 1 1 140px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px; border-radius: var(--rb); background: var(--pink-l); text-align: center; }
+.hpod .md { font-size: 28px; } .hpod .pic { width: 56px; height: 56px; }
+.hpod.lastp { background: #eee; }
+.hvote { margin: 6px 0; } .hvote svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 4px; }
+.hteam { margin: 6px 0; gap: 8px; }
+.htbl { width: 100%; border-collapse: collapse; }
+.htbl th, .htbl td { padding: 6px 8px; border-bottom: 1px solid #f1e3e8; text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+.htbl th { color: var(--muted); font-size: 13px; }
+.htbl .pic.sm { display: inline-block; width: 26px; height: 26px; vertical-align: middle; margin-right: 6px; }
+.htbl.sm td { padding: 4px 6px; font-size: 14px; }
+.hq { border-bottom: 1px solid #f1e3e8; padding: 8px 0; } .hq summary { cursor: pointer; font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
+/* რამდენიმე სწორი: დიდი ნიშანი; ჩექბოქსის მსგავსი ვარიანტები; დადასტურება */
+.multibadge { display: block; width: fit-content; max-width: 100%; margin: 0 auto 12px; padding: 8px 18px; border-radius: 999px; background: var(--pink); color: #fff; font-weight: 800; font-size: 18px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.multibadge.tv { font-size: clamp(22px, 2.6vw, 40px); padding: 10px 30px; margin-bottom: 18px; }
+.opt.chk .box { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 3px solid var(--pink); background: #fff; display: grid; place-items: center; color: #fff; }
+.opt.chk.sel .box { background: var(--pink); }
+.opt.chk .box svg { width: 24px; height: 24px; stroke-width: 3.5; }
+.opt.chk .lt2 { flex: none; font-weight: 800; color: var(--muted); }
+.opt.sel { background: #fff4f8; }
+.btn.confirm { margin-top: 18px; min-height: 64px; font-size: 22px; position: sticky; bottom: 10px; z-index: 2; }
+.btn.confirm:disabled { opacity: .45; }
