@@ -906,3 +906,5 @@ body.host.app .btn.tc-ok, body.host.app .btn.tc-no { white-space: normal; flex-d
 .tv .introscr { align-items: center; text-align: center; }
 .tv .introline { margin-left: auto; margin-right: auto; width: 100%; max-width: 85%; }
 .tv .introteams { width: 100%; }
+.tcard.buzzing { box-shadow: 0 0 0 4px var(--pink), 0 8px 22px rgba(194, 24, 91, .3); transform: translateY(-2px); }
+.tcard.dim { opacity: .55; }

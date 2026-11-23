@@ -1,5 +1,5 @@
 // ფაციფუცობანა — წამყვანის გვერდი (საღამოს სამართავად; მოსამზადებელი ყველაფერი admin.html-შია)
-const S = { session: null, live: {}, players: {}, teams: {}, awarded: {}, questions: {}, quizzes: {}, answers: {}, curQ: null, sec: null, conn: true, loaded: {} };
+const S = { session: null, live: {}, players: {}, teams: {}, awarded: {}, questions: {}, quizzes: {}, answers: {}, curQ: null, sec: null, conn: true, loaded: {}, tbOpen: true };
 const view = $('#view');
 $('#gateLogo').innerHTML = logoHtml(); $('#sideLogo').innerHTML = logoHtml();
 gate(start);
@@ -164,11 +164,13 @@ function g1Section() {
   let body;
   if (q) {
     const r = rulesFor(q), up = Number(r.pts) || 0, down = Number(r.penalty) || 0, n = teamCount(), fl = S.flash && Date.now() - S.flash.at < 900 ? S.flash.key : '';
-    const cards = Array.from({ length: n }, (_, i) => `<div class="tcard" style="--t:${TEAM_HUES[i]}"><div class="tchead"><b>${esc(teamName(S.teams, i))}</b><span class="tcsc">${fmtPts(teamScore(S.teams, i))} <small>ქულა</small></span></div>
+    const bz = l.buzz, bzT = bz && l.phase === 'buzzed' ? bz.team : null;
+    const cards = Array.from({ length: n }, (_, i) => `<div class="tcard ${bzT === i ? 'buzzing' : ''} ${bzT != null && bzT !== i ? 'dim' : ''}" style="--t:${TEAM_HUES[i]}"><div class="tchead"><b>${esc(teamName(S.teams, i))}</b><span class="tcsc">${fmtPts(teamScore(S.teams, i))} <small>ქულა</small></span></div>
       <button class="btn tc-ok ${fl === i + 'r' ? 'flash' : ''}" data-act="tmark" data-id="${i}" data-k="r">${L('check')}სწორი +${fmtPts(up)}</button>
       <button class="btn tc-no ${fl === i + 'w' ? 'flash' : ''}" data-act="tmark" data-id="${i}" data-k="w">${L('x')}არასწორი${down ? ' −' + fmtPts(down) : ''}</button></div>`).join('');
     const last = S.g1last;
     body = `<p class="stage-q">${esc(q.text)}</p>${rulesLine(q)}<div class="anspill">${L('circle-check-big')}პასუხი: ${esc(q.answer || '—')}</div>
+    <div class="buzzbox" style="${bz ? `background:${TEAM_HUES[bz.team]}` : ''}">${bz ? `${pic(bz.avatar)}<span>${esc(bz.name)} · ${esc(teamName(S.teams, bz.team))}${l.phase === 'right' ? ' · სწორია' : ' დააჭირა'}</span>` : `<span class="muted">${l.phase === 'right' ? 'სწორია!' : 'ველოდებით, ვინ დააჭერს ღილაკს…'}</span>`}</div>
     <div class="tcards" style="--n:${n}">${cards}</div>
     <div class="undorow"><button class="btn" data-act="g1undo" ${last ? '' : 'disabled'}>${L('undo-2')}გაუქმება${last ? `: ${esc(teamName(S.teams, last.team))} ${last.pts >= 0 ? '+' : '−'}${fmtPts(Math.abs(last.pts))}` : ''}</button></div>`;
   } else body = `<p class="muted">აირჩიე კითხვა სიიდან ან დააჭირე „კითხვის ჩვენება“-ს.</p>`;
@@ -418,7 +420,10 @@ const A = {
     const prev = JSON.parse(JSON.stringify(S.tstreak || {}));
     if (pts) db.ref('teams/' + team + '/score').transaction(v => Math.round(((Number(v) || 0) + pts) * 100) / 100);
     db.ref('g1log').push({ team, pts, kind, qid: l.qid, prev, at: now });
-    db.ref('live').update({ mark: { team, kind, pts, n: now }, sfx: { kind: kind === 'r' ? 'right' : 'wrong', n: now } });
+    const lu = { mark: { team, kind, pts, n: now }, sfx: { kind: kind === 'r' ? 'right' : 'wrong', n: now } };
+    if (kind === 'r') lu.phase = 'right'; // ღილაკები იკეტება შემდეგ კითხვამდე
+    else { const key = (l.buzz && l.buzz.team === team && l.buzz.key) || ('t' + team); lu['wrong/' + key] = true; lu.lastWrong = key; if (l.buzz && l.buzz.team === team) { lu.buzz = null; lu.phase = 'open'; } } // არასწორი → სხვა გუნდებს შეუძლიათ დაჭერა
+    db.ref('live').update(lu);
     teamStreak(team, kind === 'r');
     if (kind === 'r') markGame('g1', { doneQ: l.qid });
     if (kind === 'r' && l.q && l.q.mw === 'right' && !l.autoShown) setTimeout(() => db.ref('live').transaction(x => { if (!x || x.qid !== l.qid) return; g1AutoShow(x, 'right'); return x; }, null, false), 2000); // სურათი — „სწორია!“-ს შემდეგ
